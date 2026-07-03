@@ -1,16 +1,13 @@
-# server.py  ← THIS is the only .py file
-import http.server
-import socketserver
-import os
+# server.py — Streamlit wrapper for the Bank Transaction app
+import streamlit.components.v1 as components
 
-PORT = int(os.environ.get("PORT", 8080))
+# Read the HTML file
+with open("index.html", "r", encoding="utf-8") as f:
+    html_content = f.read()
 
-class Handler(http.server.SimpleHTTPRequestHandler):
-    def do_GET(self):
-        if self.path == "/" or self.path == "":
-            self.path = "/index.html"
-        return super().do_GET()
-
-with socketserver.TCPServer(("", PORT), Handler) as httpd:
-    print(f"Serving on port {PORT}")
-    httpd.serve_forever()
+# Render full-page in an iframe
+components.html(
+    html_content,
+    height=900,
+    scrolling=True,
+)
