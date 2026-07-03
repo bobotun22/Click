@@ -1,2319 +1,2829 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bank Transaction Processing System</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@200;400;500;700;900&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<style>
-  :root {
-    --primary: #008BB6;
-    --primary-dark: #006d8e;
-    --secondary: #00a2d4;
-    --accent: #FCBA12;
-    --accent-dark: #d9a00e;
-    --bg: #F8F9FA;
-    --bg-card: #ffffff;
-    --text: #1A202C;
-    --text-muted: #636E72;
-    --border: #e2e8f0;
-    --success: #27ae60;
-    --danger: #e74c3c;
-    --warning: #f39c12;
-    --shadow: 0 4px 24px rgba(0,0,0,0.08);
-    --shadow-lg: 0 12px 48px rgba(0,0,0,0.12);
-    --radius: 12px;
-    --radius-sm: 8px;
-  }
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox, scrolledtext
+import os
+import sys
+import threading
+import webbrowser
+import pandas as pd
+import re
+from datetime import datetime
+from PIL import Image, ImageTk, ImageDraw, ImageFont
+from openpyxl import load_workbook, Workbook
+from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+from collections import defaultdict
+import sqlite3
+import io
+from decimal import Decimal
+import os
+import tkinter as tk
+from tkinter import ttk
+from PIL import Image, ImageTk
 
-  .dark {
-    --primary: #00a2d4;
-    --primary-dark: #008BB6;
-    --secondary: #33b8e0;
-    --bg: #1a1d23;
-    --bg-card: #252830;
-    --text: #e8ecf1;
-    --text-muted: #8b95a5;
-    --border: #363b45;
-    --shadow: 0 4px 24px rgba(0,0,0,0.3);
-    --shadow-lg: 0 12px 48px rgba(0,0,0,0.4);
-  }
+# ===================== CONSTANTS =====================
+FONT_NAME = "Segoe UI"
+DARK_MODE = False
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+# Exact colors extracted from image_709bc7.png
+PRIMARY_COLOR = "#008BB6"      # Vibrant Ocean Blue (Main Background)
+SECONDARY_COLOR = "#00a2d4"    # Lighter Sky Blue (For button hover states)
+ACCENT_COLOR = "#FCBA12"       # Golden Yellow (From the anniversary script)
 
-  body {
-    font-family: 'DM Sans', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    transition: background 0.4s, color 0.4s;
-  }
+# Clean Interface Surfaces & Typography
+BG_COLOR = "#F8F9FA"           # Crisp light grey surface
+TEXT_COLOR = "#1A202C"         # Dark slate for readable text
+LIGHT_TEXT = "#636E72"         # Muted grey for descriptions
 
-  /* Animated background */
-  .bg-pattern {
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    overflow: hidden;
-  }
-  .bg-pattern::before {
-    content: '';
-    position: absolute;
-    width: 600px; height: 600px;
-    background: radial-gradient(circle, rgba(0,139,182,0.08) 0%, transparent 70%);
-    top: -200px; right: -100px;
-    animation: float1 20s ease-in-out infinite;
-  }
-  .bg-pattern::after {
-    content: '';
-    position: absolute;
-    width: 500px; height: 500px;
-    background: radial-gradient(circle, rgba(252,186,18,0.06) 0%, transparent 70%);
-    bottom: -150px; left: -100px;
-    animation: float2 25s ease-in-out infinite;
-  }
-  @keyframes float1 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(-80px, 60px) scale(1.2); }
-  }
-  @keyframes float2 {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(60px, -80px) scale(1.1); }
-  }
+# ===================== UTILITY FUNCTIONS =====================
+def toggle_dark_mode():
+    global DARK_MODE
+    DARK_MODE = not DARK_MODE
+    update_theme()
+    dark_mode_btn.config(text="☀️" if DARK_MODE else "🌙")
 
-  /* Header */
-  .header {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background: var(--primary);
-    color: white;
-    padding: 0 32px;
-    height: 64px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    box-shadow: 0 2px 20px rgba(0,139,182,0.3);
-  }
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-  .header-logo {
-    width: 40px; height: 40px;
-    background: var(--accent);
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 900;
-    font-size: 18px;
-    color: #1a1a1a;
-    font-family: 'Space Grotesk', sans-serif;
-  }
-  .header-title {
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700;
-    font-size: 20px;
-    letter-spacing: -0.5px;
-  }
-  .header-subtitle {
-    font-size: 12px;
-    opacity: 0.8;
-    font-weight: 400;
-  }
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .icon-btn {
-    width: 40px; height: 40px;
-    border: none;
-    border-radius: var(--radius-sm);
-    background: rgba(255,255,255,0.15);
-    color: white;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    transition: all 0.2s;
-  }
-  .icon-btn:hover {
-    background: rgba(255,255,255,0.25);
-    transform: translateY(-1px);
-  }
+def update_theme():
+    bg = "#2d2d2d" if DARK_MODE else BG_COLOR
+    fg = "#ffffff" if DARK_MODE else TEXT_COLOR
+    header_bg = "#1a1a1a" if DARK_MODE else PRIMARY_COLOR
+    button_bg = "#3a3a3a" if DARK_MODE else PRIMARY_COLOR
+    button_fg = "#ffffff" if DARK_MODE else "#ffffff"
+    
+    root.config(bg=bg)
+    header_frame.config(bg=header_bg)
+    main_frame.config(bg=bg)
+    status_bar.config(bg=header_bg)
+    
+    for widget in main_frame.winfo_children():
+        if isinstance(widget, (tk.Label, tk.Frame)):
+            widget.config(bg=bg, fg=fg)
+    
+    for btn in [atm_btn, daily_btn, icbs_btn, mpu_btn, monitor_btn, test_btn, converter_btn]:
+        btn.config(bg=button_bg, fg=button_fg, activebackground=SECONDARY_COLOR)
+    
+    # Update instruction text colors
+    instruction_text.config(bg=bg)
+    instruction_text.tag_config("normal", foreground=fg)
+    instruction_text.tag_config("red", foreground="red")
 
-  /* Navigation tabs */
-  .nav-tabs {
-    display: flex;
-    gap: 4px;
-    padding: 16px 32px 0;
-    position: relative;
-    z-index: 10;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .nav-tabs::-webkit-scrollbar { display: none; }
+def create_logo():
+    """Create a default bank logo"""
+    img = Image.new('RGB', (200, 80), color=(255, 255, 255))
+    d = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("arial.ttf", 24)
+    except:
+        font = ImageFont.load_default()
+    d.text((10, 30), "BANK SYSTEM", fill=(0, 0, 128), font=font)
+    return ImageTk.PhotoImage(img)
 
-  .nav-tab {
-    padding: 12px 20px;
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-    transition: all 0.25s;
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    position: relative;
-  }
-  .nav-tab:hover {
-    color: var(--primary);
-    background: rgba(0,139,182,0.06);
-  }
-  .nav-tab.active {
-    color: var(--primary);
-    background: var(--bg-card);
-    font-weight: 700;
-    box-shadow: 0 -2px 10px rgba(0,0,0,0.04);
-  }
-  .nav-tab.active::after {
-    content: '';
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: 3px;
-    background: var(--primary);
-    border-radius: 3px 3px 0 0;
-  }
-  .nav-tab i { font-size: 15px; }
+# ===================== ATM DAILY TRANSACTION FUNCTIONS =====================
+def sheet_exists(wb, name):
+    return name in wb.sheetnames
 
-  /* Main content area */
-  .main-content {
-    position: relative;
-    z-index: 10;
-    padding: 24px 32px 60px;
-  }
+def prepare_sheet(wb, sheet_name):
+    if sheet_name in wb.sheetnames:
+        std = wb[sheet_name]
+        wb.remove(std)
+    return wb.create_sheet(sheet_name)
 
-  .tab-panel {
-    display: none;
-    animation: fadeIn 0.35s ease;
-  }
-  .tab-panel.active { display: block; }
+def find_column_index(header, keyword):
+    for i, h in enumerate(header):
+        if h and keyword.lower() in str(h).lower():
+            return i
+    return -1
 
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
+def to_float_safe(value):
+    if value is None:
+        return 0.0
+    try:
+        s = str(value).replace(",", "").replace("MMK", "").strip()
+        return float(s)
+    except Exception:
+        return 0.0
 
-  /* Cards */
-  .card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 24px;
-    margin-bottom: 20px;
-    transition: background 0.4s, border-color 0.4s;
-  }
-  .card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--border);
-  }
-  .card-title {
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700;
-    font-size: 18px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .card-title i {
-    color: var(--primary);
-    font-size: 20px;
-  }
+def parse_pasted_data(pasted_text, terminal_ids):
+    """Parse pasted Excel data to extract opening balances"""
+    balances = {}
+    lines = pasted_text.strip().split('\n')
+    
+    # Try to parse as two columns (Terminal ID and Balance)
+    two_column_pattern = re.compile(r'^([^\t]+)\t([^\t]+)$')
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # Try two columns first
+        match = two_column_pattern.match(line)
+        if match:
+            terminal_id = match.group(1).strip()
+            balance_str = match.group(2).strip()
+            
+            # Clean terminal ID (remove any extra spaces or non-alphanumeric characters)
+            terminal_id = re.sub(r'[^\w]', '', terminal_id)
+            
+            if terminal_id in terminal_ids:
+                try:
+                    balance = to_float_safe(balance_str)
+                    balances[terminal_id] = balance
+                except:
+                    balances[terminal_id] = 0.0
+        else:
+            # Try single column (just balance)
+            try:
+                balance = to_float_safe(line)
+                # We can't assign to a specific terminal, so we'll handle this differently
+                # For now, we'll skip single column parsing
+                pass
+            except:
+                pass
+    
+    return balances
 
-  /* Upload zone */
-  .upload-zone {
-    border: 2px dashed var(--border);
-    border-radius: var(--radius);
-    padding: 60px 40px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.3s;
-    position: relative;
-    overflow: hidden;
-  }
-  .upload-zone::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(0,139,182,0.03), rgba(252,186,18,0.03));
-    opacity: 0;
-    transition: opacity 0.3s;
-  }
-  .upload-zone:hover, .upload-zone.drag-over {
-    border-color: var(--primary);
-    background: rgba(0,139,182,0.04);
-  }
-  .upload-zone:hover::before, .upload-zone.drag-over::before { opacity: 1; }
-  .upload-zone .icon {
-    font-size: 48px;
-    color: var(--primary);
-    margin-bottom: 16px;
-    position: relative;
-    z-index: 1;
-  }
-  .upload-zone h3 {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 20px;
-    margin-bottom: 8px;
-    position: relative;
-    z-index: 1;
-  }
-  .upload-zone p {
-    color: var(--text-muted);
-    font-size: 14px;
-    position: relative;
-    z-index: 1;
-  }
-  .upload-zone input[type="file"] {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
-  }
+def get_opening_balances(terminal_ids):
+    """Create a dialog for the user to paste opening balances from Excel"""
+    dialog = tk.Toplevel(root)
+    dialog.title("Paste Opening Balances from Excel")
+    dialog.geometry("700x600")
+    dialog.resizable(False, False)
+    dialog.configure(bg="#f5f6fa")
+    
+    # Create frame with scrollbar
+    main_frame = tk.Frame(dialog, bg="#f5f6fa")
+    main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+    
+    # Title
+    title_label = tk.Label(
+        main_frame,
+        text="Paste Opening Balances from Excel",
+        font=("Arial", 16, "bold"),
+        fg="#2f3640",
+        bg="#f5f6fa"
+    )
+    title_label.pack(pady=(0, 15))
+    
+    # Instructions
+    instructions = tk.Label(
+        main_frame,
+        text="Copy and paste two columns from Excel:\n1. Terminal ID column\n2. Opening Balance column\n\nThe system will automatically match Terminal IDs and extract balances.",
+        font=("Arial", 11),
+        fg="#353b48",
+        bg="#f5f6fa",
+        justify=tk.LEFT
+    )
+    instructions.pack(pady=(0, 15))
+    
+    # Text area for pasting
+    text_frame = tk.Frame(main_frame, bg="#f5f6fa")
+    text_frame.pack(fill=tk.BOTH, expand=True)
+    
+    text_area = scrolledtext.ScrolledText(
+        text_frame,
+        wrap=tk.WORD,
+        width=70,
+        height=15,
+        font=("Courier New", 10),
+        bg="white",
+        fg="#2f3640"
+    )
+    text_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    
+    # Sample format label
+    sample_label = tk.Label(
+        main_frame,
+        text="Example format:\n09950001\t150000.00\n09950002\t200000.00\n09950003\t175000.00",
+        font=("Courier New", 9),
+        fg="#7f8c8d",
+        bg="#f5f6fa",
+        justify=tk.LEFT
+    )
+    sample_label.pack(pady=(10, 0))
+    
+    # Buttons frame
+    button_frame = tk.Frame(main_frame, bg="#f5f6fa")
+    button_frame.pack(fill=tk.X, pady=(15, 0))
+    
+    # Result variable
+    result = {"balances": {}, "submitted": False}
+    
+    def parse_and_submit():
+        pasted_text = text_area.get("1.0", tk.END)
+        balances = parse_pasted_data(pasted_text, terminal_ids)
+        
+        if not balances:
+            messagebox.showerror("No Valid Data", "No valid opening balances found in the pasted data.")
+            return
+        
+        # Check if we got balances for all terminals
+        missing_terminals = [tid for tid in terminal_ids if tid not in balances]
+        if missing_terminals:
+            response = messagebox.askyesno(
+                "Missing Terminals",
+                f"Opening balances not found for {len(missing_terminals)} terminals.\n"
+                "Do you want to use 0.00 for missing terminals?"
+            )
+            if not response:
+                return
+            
+            # Set 0.00 for missing terminals
+            for tid in missing_terminals:
+                balances[tid] = 0.0
+        
+        result["balances"] = balances
+        result["submitted"] = True
+        dialog.destroy()
+    
+    def cancel_dialog():
+        dialog.destroy()
+    
+    # Parse button
+    parse_btn = tk.Button(
+        button_frame,
+        text="Parse & Submit",
+        command=parse_and_submit,
+        width=15,
+        height=2,
+        bg="#3E8E41",
+        fg="white",
+        font=("Arial", 10, "bold"),
+        activebackground="#44bd32",
+        bd=0,
+        relief="flat",
+        highlightthickness=0
+    )
+    parse_btn.pack(side=tk.RIGHT, padx=(5, 0))
+    
+    # Cancel button
+    cancel_btn = tk.Button(
+        button_frame,
+        text="Cancel",
+        command=cancel_dialog,
+        width=15,
+        height=2,
+        bg="#e74c3c",
+        fg="white",
+        font=("Arial", 10, "bold"),
+        activebackground="#c0392b",
+        bd=0,
+        relief="flat",
+        highlightthickness=0
+    )
+    cancel_btn.pack(side=tk.RIGHT)
+    
+    # Make dialog modal
+    dialog.transient(root)
+    dialog.grab_set()
+    dialog.wait_window()
+    
+    return result["balances"] if result["submitted"] else None
 
-  /* Buttons */
-  .btn {
-    padding: 10px 24px;
-    border: none;
-    border-radius: var(--radius-sm);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    transition: all 0.2s;
-  }
-  .btn:active { transform: scale(0.97); }
-  .btn-primary {
-    background: var(--primary);
-    color: white;
-  }
-  .btn-primary:hover { background: var(--primary-dark); box-shadow: 0 4px 16px rgba(0,139,182,0.3); }
-  .btn-accent {
-    background: var(--accent);
-    color: #1a1a1a;
-  }
-  .btn-accent:hover { background: var(--accent-dark); box-shadow: 0 4px 16px rgba(252,186,18,0.3); }
-  .btn-success {
-    background: var(--success);
-    color: white;
-  }
-  .btn-success:hover { background: #219a52; }
-  .btn-danger {
-    background: var(--danger);
-    color: white;
-  }
-  .btn-danger:hover { background: #c0392b; }
-  .btn-outline {
-    background: transparent;
-    border: 1.5px solid var(--border);
-    color: var(--text);
-  }
-  .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
-  .btn-sm { padding: 7px 14px; font-size: 13px; }
-  .btn-lg { padding: 14px 32px; font-size: 16px; }
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none !important;
-  }
+def add_terminal_details_sheet(wb_main, terminal_aggregation, opening_balances):
+    """Add a sheet with terminal details using aggregated transaction data and user-provided opening balances"""
+    ws_terminal = prepare_sheet(wb_main, "Terminal Details")
+    
+    # Add headers
+    headers = ["S/N", "Terminal ID", "Location", "Opening Balance", "Trans", "Issuer", "Acquirer", "Balance", "Remark"]
+    ws_terminal.append(headers)
+    
+    # Terminal data with opening balances (now from user input)
+    terminal_info = [
+        [1, "09950001", "Dagon"],
+        [2, "09950002", "Botahtaung"],
+        [3, "09950003", "MIP"],
+        [4, "09950004", "MDY"],
+        [5, "09950005", "NPT MOC 40"],
+        [6, "09950006", "Pathein"],
+        [7, "09950007", "Naypyitaw Br"],
+        [8, "09950008", "Mawlamyaing"],
+        [9, "09950009", "Shwe Pauk Kan"],
+        [10, "09950010", "Magway"],
+        [11, "09950013", "Dagon (2)"],
+        [12, "09950014", "Monywa"],
+        [13, "09950015", "Hpa-an"],
+        [14, "09950016", "Dawei"],
+        [15, "09950017", "DSK"],
+        [16, "09950018", "BGO"],
+        [17, "09950019", "MKN"],
+        [18, "09950021", "HTY"],
+        [19, "09950024", "TGI"],
+        [20, "09950025", "MICT Park"],
+        [21, "09950026", "NPT MOC 11"],
+        [22, "09950027", "NPT MOC 11 (2)"],
+        [23, "09950028", "NPT MOC 40 (2)"],
+        [24, "09950029", "NPT Hluttaw"]
+    ]
+    
+    # Add terminal data to the sheet using aggregated data and user-provided opening balances
+    for info in terminal_info:
+        sn, terminal_id, location = info
+        
+        # Get aggregated data for this terminal
+        terminal_data = terminal_aggregation.get(terminal_id, {
+            'atm_issuer_withdraw_count': 0,
+            'atm_issuer_withdraw_amount': 0.0,
+            'atm_card_950316_amount': 0.0,
+            'atm_withdraw_fee_nonzero_amount': 0.0,
+            'atm_withdraw_fee_nonzero_trx_amount': 0.0,
+            'atm_withdraw_nonzero_count': 0  # Count of ATM withdrawal transactions with non-zero amounts
+        })
+        
+        # Get user-provided opening balance for this terminal (default to 0.0 if not provided)
+        opening_balance = opening_balances.get(terminal_id, 0.0)
+        
+        # Trans = Count of ATM withdrawal transactions with non-zero amounts for this terminal
+        trans = terminal_data['atm_withdraw_nonzero_count']
+        
+        # Issuer = ATM_Issuer_Withdraw amount + ATM_Card_950316 amount for this terminal
+        issuer_amt = terminal_data['atm_issuer_withdraw_amount'] + terminal_data['atm_card_950316_amount']
+        
+        # Acquirer = Transaction Amount - Fee for this terminal
+        acquirer_amt = terminal_data['atm_withdraw_fee_nonzero_trx_amount'] - terminal_data['atm_withdraw_fee_nonzero_amount']
+        
+        # Balance = Opening Balance - Issuer - Acquirer
+        balance = opening_balance - issuer_amt - acquirer_amt
+        
+        ws_terminal.append([
+            sn, terminal_id, location, opening_balance, trans, issuer_amt, acquirer_amt, balance, ""
+        ])
+    
+    # Get data from Summary sheet
+    pos_count = 0
+    pos_amount = 0.0
+    issuer_count = 0
+    issuer_commission = 0.0
+    card_to_card_count = 0
+    card_to_card_amount = 0.0
+    
+    if "Summary" in wb_main.sheetnames:
+        ws_summary = wb_main["Summary"]
+        
+        # POS & Ecommerce Amount: B4+B5 (count), C4+C5 (amount)
+        pos_count = (ws_summary.cell(row=4, column=2).value or 0) + (ws_summary.cell(row=5, column=2).value or 0)
+        pos_amount = (ws_summary.cell(row=4, column=3).value or 0) + (ws_summary.cell(row=5, column=3).value or 0)
+        
+        # Issuer Off us & Commission (Paid): B3 (count), G3 (commission)
+        issuer_count = ws_summary.cell(row=3, column=2).value or 0
+        issuer_commission = ws_summary.cell(row=3, column=7).value or 0
+        
+        # Card To Card: B7 (count), C7 (amount)
+        card_to_card_count = ws_summary.cell(row=7, column=2).value or 0
+        card_to_card_amount = ws_summary.cell(row=7, column=3).value or 0
+    
+    # Add POS & Ecommerce Amount row (data from Summary sheet)
+    ws_terminal.append([
+        "", "POS & Ecommerce Amount", "", "", 
+        pos_count, "", "", pos_amount, ""
+    ])
+    
+    # Add Issuer Off us & Commission (Paid) row (data from Summary sheet G3)
+    ws_terminal.append([
+        "", "Issuer Off us & Commission (Paid)", "", "", 
+        issuer_count, "", "", issuer_commission, ""
+    ])
+    
+    # Add Card To Card row (data from Summary sheet B7 and C7)
+    ws_terminal.append([
+        "", "Card To Card", "", "", 
+        card_to_card_count, "", "", card_to_card_amount, ""
+    ])
+    
+    # Format numbers in specific columns
+    for row in range(2, ws_terminal.max_row + 1):
+        # Opening Balance, Issuer, Acquirer, Balance columns
+        for col in [4, 6, 7, 8]:
+            ws_terminal.cell(row=row, column=col).number_format = '#,##0.00'
+    
+    # Auto-adjust column widths
+    for column in ws_terminal.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = (max_length + 2)
+        ws_terminal.column_dimensions[column_letter].width = adjusted_width
 
-  /* Progress bar */
-  .progress-container {
-    margin: 20px 0;
-    display: none;
-  }
-  .progress-container.visible { display: block; }
-  .progress-label {
-    font-size: 13px;
-    color: var(--text-muted);
-    margin-bottom: 8px;
-    display: flex;
-    justify-content: space-between;
-  }
-  .progress-bar {
-    height: 8px;
-    background: var(--border);
-    border-radius: 4px;
-    overflow: hidden;
-  }
-  .progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--primary), var(--secondary));
-    border-radius: 4px;
-    width: 0%;
-    transition: width 0.4s ease;
-  }
+def add_terminal_transaction_sheets(wb_main, terminal_transactions, header):
+    """Add a sheet for each terminal with its detailed transactions"""
+    # Create a sheet for each terminal
+    for terminal_id, transactions in terminal_transactions.items():
+        if not transactions:  # Skip terminals with no transactions
+            continue
+            
+        # Create sheet name (Excel has a 31-character limit for sheet names)
+        sheet_name = f"T_{terminal_id}"
+        ws = prepare_sheet(wb_main, sheet_name)
+        
+        # Add header
+        ws.append(header)
+        
+        # Add transactions
+        for row in transactions:
+            ws.append([cell.value for cell in row])
+        
+        # Auto-adjust column widths
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min((max_length + 2), 30)  # Limit width to 30 characters
+            ws.column_dimensions[column_letter].width = adjusted_width
 
-  /* Status message */
-  .status-msg {
-    padding: 12px 16px;
-    border-radius: var(--radius-sm);
-    font-size: 14px;
-    margin-top: 12px;
-    display: none;
-    align-items: center;
-    gap: 10px;
-  }
-  .status-msg.visible { display: flex; }
-  .status-msg.success { background: rgba(39,174,96,0.1); color: var(--success); border: 1px solid rgba(39,174,96,0.2); }
-  .status-msg.error { background: rgba(231,76,60,0.1); color: var(--danger); border: 1px solid rgba(231,76,60,0.2); }
-  .status-msg.info { background: rgba(0,139,182,0.1); color: var(--primary); border: 1px solid rgba(0,139,182,0.2); }
-  .status-msg.warning { background: rgba(243,156,18,0.1); color: var(--warning); border: 1px solid rgba(243,156,18,0.2); }
+def add_summary_sheet(wb_main, sheets_data):
+    """Add a summary sheet with calculated metrics"""
+    ws_sum = prepare_sheet(wb_main, "Summary")
+    ws_sum.append([
+        "Sheet Name", "Total Count", "Total Amount", "Total Fee",
+        "Total Transaction", "Total Use Card", "Total 1%",
+        "Total 1% / 2100", "Total / 2100"
+    ])
 
-  /* Data table */
-  .table-wrapper {
-    overflow-x: auto;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
-  thead {
-    background: var(--primary);
-    color: white;
-    position: sticky;
-    top: 0;
-    z-index: 5;
-  }
-  th {
-    padding: 12px 14px;
-    text-align: left;
-    font-weight: 600;
-    white-space: nowrap;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  td {
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--border);
-    white-space: nowrap;
-  }
-  tbody tr {
-    transition: background 0.15s;
-  }
-  tbody tr:hover {
-    background: rgba(0,139,182,0.04);
-  }
-  .num { text-align: right; font-variant-numeric: tabular-nums; }
-  .text-green { color: var(--success); }
-  .text-red { color: var(--danger); }
-  .text-accent { color: var(--accent); font-weight: 700; }
-  .text-muted { color: var(--text-muted); }
-  .text-primary { color: var(--primary); font-weight: 600; }
+    for data in sheets_data:
+        ws_sum.append(list(data))
 
-  /* Summary grid */
-  .summary-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-  .stat-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 20px;
-    text-align: center;
-    transition: all 0.25s;
-    position: relative;
-    overflow: hidden;
-  }
-  .stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 3px;
-  }
-  .stat-card.blue::before { background: var(--primary); }
-  .stat-card.gold::before { background: var(--accent); }
-  .stat-card.green::before { background: var(--success); }
-  .stat-card.red::before { background: var(--danger); }
-  .stat-card:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-lg);
-  }
-  .stat-label {
-    font-size: 12px;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 8px;
-  }
-  .stat-value {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 28px;
-    font-weight: 700;
-    line-height: 1.1;
-  }
-  .stat-sub {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-top: 4px;
-  }
+    # Format numbers in Summary sheet
+    for row in range(2, ws_sum.max_row + 1):
+        for col in [3, 4, 5, 7, 8, 9]:
+            ws_sum.cell(row=row, column=col).number_format = '#,##0.00'
 
-  /* Modal */
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.5);
-    backdrop-filter: blur(4px);
-    z-index: 1000;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    animation: fadeIn 0.2s;
-  }
-  .modal-overlay.visible {
-    display: flex;
-  }
-  .modal {
-    background: var(--bg-card);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-lg);
-    width: 90%;
-    max-width: 720px;
-    max-height: 85vh;
-    overflow-y: auto;
-    animation: modalSlide 0.3s ease;
-  }
-  @keyframes modalSlide {
-    from { opacity: 0; transform: translateY(20px) scale(0.97); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-  }
-  .modal-header {
-    padding: 20px 24px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    background: var(--bg-card);
-    z-index: 5;
-    border-radius: var(--radius) var(--radius) 0 0;
-  }
-  .modal-header h3 {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 18px;
-  }
-  .modal-close {
-    width: 36px; height: 36px;
-    border: none;
-    background: var(--border);
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    color: var(--text-muted);
-    transition: all 0.2s;
-  }
-  .modal-close:hover { background: var(--danger); color: white; }
-  .modal-body { padding: 24px; }
-  .modal-footer {
-    padding: 16px 24px;
-    border-top: 1px solid var(--border);
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    position: sticky;
-    bottom: 0;
-    background: var(--bg-card);
-    border-radius: 0 0 var(--radius) var(--radius);
-  }
+    # Highlight specific cells in green & make them bold
+    green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+    bold_font = Font(bold=True)
+    cells_to_highlight = ["E2", "E4", "E5", "E6", "E7", "G3", "H3", "I2", "I4", "I5", "I6", "I7"]
+    for cell in cells_to_highlight:
+        try:
+            c = ws_sum[cell]
+            c.fill = green_fill
+            c.font = bold_font
+        except:
+            # Skip if cell doesn't exist
+            pass
 
-  /* Form elements */
-  textarea.form-control {
-    width: 100%;
-    padding: 14px;
-    border: 1.5px solid var(--border);
-    border-radius: var(--radius-sm);
-    font-family: 'Courier New', monospace;
-    font-size: 13px;
-    background: var(--bg);
-    color: var(--text);
-    resize: vertical;
-    min-height: 180px;
-    transition: border-color 0.2s;
-  }
-  textarea.form-control:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(0,139,182,0.12);
-  }
+def add_atm_transfer_details_sheet(wb_main, header, atm_transfer_rows, amount_idx, fee_idx):
+    """Add a detailed sheet for ATM Transfer CardToAccount transactions"""
+    if not atm_transfer_rows:
+        return
+    
+    ws_details = prepare_sheet(wb_main, "ATM_Transfer_Details")
+    
+    # Add header with additional columns
+    detailed_header = header.copy()
+    detailed_header.extend(["Transfer Type", "Fee Percentage"])
+    ws_details.append(detailed_header)
+    
+    # Add transactions with calculated details
+    for row in atm_transfer_rows:
+        row_data = [cell.value for cell in row]
+        amount = to_float_safe(row[amount_idx].value)
+        fee = to_float_safe(row[fee_idx].value)
+        
+        # Determine transfer type based on transaction text
+        txt = " ".join([str(cell.value).strip() if cell.value else '' for cell in row])
+        transfer_type = "Card to Account"
+        
+        # Calculate fee percentage
+        fee_percentage = 0.0
+        if amount > 0:
+            fee_percentage = (fee / amount) * 100
+        
+        # Add calculated values
+        row_data.extend([transfer_type, fee_percentage])
+        ws_details.append(row_data)
+    
+    # Format percentage column
+    for row in range(2, ws_details.max_row + 1):
+        # Fee percentage column
+        ws_details.cell(row=row, column=len(header)+2).number_format = '0.00%'
+    
+    # Auto-adjust column widths
+    for column in ws_details.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = (max_length + 2)
+        ws_details.column_dimensions[column_letter].width = adjusted_width
 
-  /* Instruction panel */
-  .instruction-panel {
-    background: rgba(0,139,182,0.05);
-    border: 1px solid rgba(0,139,182,0.15);
-    border-radius: var(--radius-sm);
-    padding: 16px 20px;
-    margin-bottom: 20px;
-    font-size: 14px;
-    line-height: 1.7;
-  }
-  .instruction-panel strong { color: var(--primary); }
-  .instruction-panel code {
-    background: rgba(0,0,0,0.06);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 12px;
-  }
-
-  /* Tab sub-navigation */
-  .sub-tabs {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 20px;
-    background: var(--bg);
-    padding: 4px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    overflow-x: auto;
-  }
-  .sub-tab {
-    padding: 8px 16px;
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    border-radius: 6px;
-    white-space: nowrap;
-    transition: all 0.2s;
-    font-family: 'DM Sans', sans-serif;
-  }
-  .sub-tab:hover { color: var(--text); background: rgba(0,0,0,0.04); }
-  .sub-tab.active {
-    background: var(--bg-card);
-    color: var(--primary);
-    font-weight: 700;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-  }
-
-  /* Toast notification */
-  .toast-container {
-    position: fixed;
-    top: 80px;
-    right: 24px;
-    z-index: 2000;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .toast {
-    padding: 14px 20px;
-    border-radius: var(--radius-sm);
-    font-size: 14px;
-    font-weight: 500;
-    box-shadow: var(--shadow-lg);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    animation: toastIn 0.3s ease;
-    min-width: 300px;
-  }
-  .toast.success { background: var(--success); color: white; }
-  .toast.error { background: var(--danger); color: white; }
-  .toast.info { background: var(--primary); color: white; }
-  @keyframes toastIn {
-    from { opacity: 0; transform: translateX(40px); }
-    to { opacity: 1; transform: translateX(0); }
-  }
-
-  /* Scrollable table container */
-  .table-scroll {
-    max-height: 500px;
-    overflow: auto;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-  }
-  .table-scroll table { border: none; }
-  .table-scroll thead { position: sticky; top: 0; z-index: 5; }
-
-  /* Badge */
-  .badge {
-    display: inline-flex;
-    padding: 3px 10px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-  }
-  .badge-blue { background: rgba(0,139,182,0.12); color: var(--primary); }
-  .badge-gold { background: rgba(252,186,18,0.15); color: #b8860b; }
-  .badge-green { background: rgba(39,174,96,0.12); color: var(--success); }
-
-  /* Highlight row */
-  .highlight-row { background: rgba(39,174,96,0.08) !important; }
-  .highlight-row td { font-weight: 600; }
-
-  /* Responsive */
-  @media (max-width: 768px) {
-    .header { padding: 0 16px; }
-    .nav-tabs { padding: 12px 16px 0; }
-    .main-content { padding: 16px; }
-    .card { padding: 16px; }
-    .summary-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-    .stat-value { font-size: 22px; }
-    .modal { width: 95%; }
-    .upload-zone { padding: 40px 20px; }
-  }
-  @media (max-width: 480px) {
-    .summary-grid { grid-template-columns: 1fr; }
-    .header-subtitle { display: none; }
-  }
-
-  /* Reduced motion */
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      transition-duration: 0.01ms !important;
+def group_and_copy_atm(ws_main, wb_main, header, amount_idx, fee_idx, card_idx, refno_idx, terminal_id_idx, terminal_aggregation, terminal_transactions, terminal_ids, pos_ecom_aggregate, atm_issuer_commission_aggregate, reversal_ref_nos):
+    """Process transactions and categorize them into different sheets"""
+    sheets = {
+        "ATM_Card_950316": [],
+        "ATM_Issuer_Withdraw": [],
+        "POS_Issuer_Sale": [],
+        "Ecom_Issuer_Sale": [],
+        "ATM_Withdraw_Fee_NonZero": [],
+        "ATM_Transfer_CardToAccount": []
     }
-  }
 
-  /* Scrollbar styling */
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+    summary_data = []
 
-  /* Terminal detail row actions */
-  .row-actions {
-    display: flex;
-    gap: 6px;
-  }
-  .row-actions button {
-    width: 28px; height: 28px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    border-radius: 6px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    color: var(--text-muted);
-    transition: all 0.2s;
-  }
-  .row-actions button:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-  }
+    # Process transactions
+    for row_idx in range(2, ws_main.max_row + 1):  # Assuming header is at row 1
+        row = ws_main[row_idx]
+        txt = " ".join([str(cell.value).strip() if cell.value else '' for cell in row])
+        ref_no = str(row[refno_idx].value).strip() if row[refno_idx].value else ""
+        
+        # Skip reversal transactions based on Ref No
+        if ref_no in reversal_ref_nos:
+            continue
 
-  /* File info */
-  .file-info {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 14px 18px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    margin-top: 16px;
-  }
-  .file-info i { font-size: 28px; color: var(--primary); }
-  .file-info .file-name { font-weight: 600; font-size: 14px; }
-  .file-info .file-size { font-size: 12px; color: var(--text-muted); }
+        # Get terminal ID and amount for aggregation
+        terminal_id = str(row[terminal_id_idx].value).strip() if terminal_id_idx != -1 and row[terminal_id_idx].value else ""
+        amount = to_float_safe(row[amount_idx].value)
+        fee = to_float_safe(row[fee_idx].value)
+        
+        # Add transaction to terminal's transaction list if terminal ID is valid
+        if terminal_id in terminal_ids:
+            terminal_transactions[terminal_id].append(row)
 
-  /* Empty state */
-  .empty-state {
-    text-align: center;
-    padding: 60px 20px;
-    color: var(--text-muted);
-  }
-  .empty-state i { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
-  .empty-state h3 { font-size: 18px; margin-bottom: 8px; color: var(--text); }
-  .empty-state p { font-size: 14px; }
-</style>
-</head>
-<body>
+        # Categorize transaction
+        if "ATM Withdraw" in txt and "950316" in txt:
+            sheets["ATM_Card_950316"].append(row)
+            if terminal_id in terminal_ids:
+                terminal_aggregation[terminal_id]['atm_card_950316_amount'] += amount
+        elif "ATM Issuer Withdraw" in txt:
+            sheets["ATM_Issuer_Withdraw"].append(row)
+            if terminal_id in terminal_ids:
+                if amount > 0:
+                    terminal_aggregation[terminal_id]['atm_issuer_withdraw_count'] += 1
+                terminal_aggregation[terminal_id]['atm_issuer_withdraw_amount'] += amount
+                # Aggregate for ATM Issuer Commission (non-zero amounts)
+                if amount > 0:
+                    atm_issuer_commission_aggregate['count'] += 1
+                    atm_issuer_commission_aggregate['commission'] += amount * 0.01  # 1% commission
+        elif "POS Issuer Sale" in txt:
+            sheets["POS_Issuer_Sale"].append(row)
+            if terminal_id in terminal_ids:
+                # Aggregate for POS & Ecom (non-zero amounts)
+                if amount > 0:
+                    pos_ecom_aggregate['count'] += 1
+                    pos_ecom_aggregate['amount'] += amount
+        elif "Ecom Issuer Sale" in txt:
+            sheets["Ecom_Issuer_Sale"].append(row)
+            if terminal_id in terminal_ids:
+                # Aggregate for POS & Ecom (non-zero amounts)
+                if amount > 0:
+                    pos_ecom_aggregate['count'] += 1
+                    pos_ecom_aggregate['amount'] += amount
+        elif "ATM Withdraw" in txt and "950316" not in txt:
+            sheets["ATM_Withdraw_Fee_NonZero"].append(row)
+            if terminal_id in terminal_ids:
+                # Aggregate both transaction amount and fee
+                terminal_aggregation[terminal_id]['atm_withdraw_fee_nonzero_trx_amount'] += amount
+                terminal_aggregation[terminal_id]['atm_withdraw_fee_nonzero_amount'] += fee
+        elif "ATM Transfer" in txt and ("CardToAccount" in txt or "Card to Account" in txt):
+            sheets["ATM_Transfer_CardToAccount"].append(row)
+        
+        # Count only ATM withdrawal transactions with non-zero amounts
+        if terminal_id in terminal_ids and amount > 0 and "ATM Withdraw" in txt:
+            terminal_aggregation[terminal_id]['atm_withdraw_nonzero_count'] += 1
 
-<div class="bg-pattern"></div>
+    # Create sheets for each transaction type with summary rows
+    for sheet_name, rows in sheets.items():
+        # Always create the ATM_Withdraw_Fee_NonZero and ATM_Transfer_CardToAccount sheets, even if empty
+        if not rows and sheet_name not in ["ATM_Withdraw_Fee_NonZero", "ATM_Transfer_CardToAccount"]:
+            continue
+            
+        ws = prepare_sheet(wb_main, sheet_name)
+        ws.append(header)
 
-<!-- Toast Container -->
-<div class="toast-container" id="toastContainer"></div>
+        total_amount = 0.0
+        total_fee = 0.0
+        count = 0
+        unique_cards = set()
 
-<!-- Header -->
-<header class="header">
-  <div class="header-left">
-    <div class="header-logo">BT</div>
-    <div>
-      <div class="header-title">Bank Transaction Processor</div>
-      <div class="header-subtitle">ATM &amp; ICBS Report System</div>
-    </div>
-  </div>
-  <div class="header-right">
-    <button class="icon-btn" id="darkModeBtn" title="Toggle Dark Mode" aria-label="Toggle dark mode">
-      <i class="fas fa-moon"></i>
-    </button>
-    <button class="icon-btn" id="githubBtn" title="View on GitHub" aria-label="GitHub">
-      <i class="fab fa-github"></i>
-    </button>
-  </div>
-</header>
+        for row in rows:
+            ws.append([cell.value for cell in row])
+            count += 1
+            total_amount += to_float_safe(row[amount_idx].value)
+            total_fee += to_float_safe(row[fee_idx].value)
 
-<!-- Navigation -->
-<nav class="nav-tabs" role="tablist">
-  <button class="nav-tab active" data-tab="atm" role="tab" aria-selected="true">
-    <i class="fas fa-money-bill-wave"></i> ATM Daily
-  </button>
-  <button class="nav-tab" data-tab="daily" role="tab" aria-selected="false">
-    <i class="fas fa-calendar-day"></i> Daily Report
-  </button>
-  <button class="nav-tab" data-tab="icbs" role="tab" aria-selected="false">
-    <i class="fas fa-database"></i> ICBS Report
-  </button>
-  <button class="nav-tab" data-tab="converter" role="tab" aria-selected="false">
-    <i class="fas fa-exchange-alt"></i> Converter
-  </button>
-</nav>
+            if card_idx != -1:
+                card_val = row[card_idx].value
+                if card_val:
+                    unique_cards.add(str(card_val).strip())
 
-<!-- Main Content -->
-<main class="main-content">
+        transaction_amount = total_amount - total_fee
+        total_use_card = len(unique_cards)
 
-  <!-- ==================== ATM DAILY TAB ==================== -->
-  <section class="tab-panel active" id="tab-atm" role="tabpanel">
-    <div class="instruction-panel">
-      <strong><i class="fas fa-info-circle"></i> Instructions:</strong>
-      Upload an Excel file (.xls/.xlsx) containing ATM transaction data. The system will automatically:
-      <br>1. Parse and categorize transactions (ATM Withdraw, POS, Ecom, Transfer)
-      <br>2. Filter out reversal transactions by matching Ref No
-      <br>3. Aggregate data per terminal ID
-      <br>4. Prompt you to paste opening balances from Excel
-      <br>5. Generate a downloadable report with Terminal Details and Summary
-    </div>
+        if sheet_name == "ATM_Issuer_Withdraw":
+            total_1_percent = (transaction_amount * 0.01) + transaction_amount
+        else:
+            total_1_percent = transaction_amount * 0.01
 
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title"><i class="fas fa-file-upload"></i> Upload ATM Transaction File</div>
-      </div>
-      <div class="upload-zone" id="atmUploadZone">
-        <input type="file" accept=".xls,.xlsx,.xlsm" id="atmFileInput" aria-label="Upload ATM transaction file">
-        <div class="icon"><i class="fas fa-cloud-upload-alt"></i></div>
-        <h3>Drop your Excel file here</h3>
-        <p>Supports .xls, .xlsx, .xlsm formats</p>
-      </div>
-      <div class="file-info" id="atmFileInfo" style="display:none">
-        <i class="fas fa-file-excel"></i>
-        <div>
-          <div class="file-name" id="atmFileName"></div>
-          <div class="file-size" id="atmFileSize"></div>
-        </div>
-        <button class="btn btn-sm btn-outline" style="margin-left:auto" onclick="clearAtmFile()">Clear</button>
-      </div>
-      <div class="progress-container" id="atmProgress">
-        <div class="progress-label">
-          <span id="atmProgressText">Processing...</span>
-          <span id="atmProgressPct">0%</span>
-        </div>
-        <div class="progress-bar"><div class="progress-fill" id="atmProgressFill"></div></div>
-      </div>
-      <div class="status-msg" id="atmStatus"></div>
-      <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap">
-        <button class="btn btn-primary btn-lg" id="atmProcessBtn" disabled onclick="processAtmData()">
-          <i class="fas fa-cogs"></i> Process File
-        </button>
-      </div>
-    </div>
+        total_1_percent_div_2100 = total_1_percent / 2100
+        total_amount_div_2100 = total_amount / 2100
 
-    <!-- ATM Results -->
-    <div id="atmResults" style="display:none">
-      <div class="summary-grid" id="atmSummaryGrid"></div>
+        # Add summary rows
+        ws.append([])
+        ws.append(["Total Count", count])
+        ws.append(["Total Amount", total_amount])
+        ws.append(["Total Fee", total_fee])
+        ws.append(["Transaction Amount", transaction_amount])
+        ws.append(["Total Use Card", total_use_card])
+        ws.append(["Total 1%", total_1_percent])
+        ws.append(["Total 1% / 2100", total_1_percent_div_2100])
+        ws.append(["Total / 2100", total_amount_div_2100])
 
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title"><i class="fas fa-terminal"></i> Terminal Details</div>
-          <button class="btn btn-sm btn-primary" onclick="exportAtmReport()">
-            <i class="fas fa-download"></i> Export Report
-          </button>
-        </div>
-        <div class="table-scroll">
-          <table id="atmTerminalTable">
-            <thead>
-              <tr>
-                <th>S/N</th><th>Terminal ID</th><th>Location</th>
-                <th>Opening Bal.</th><th>Trans</th><th>Issuer</th>
-                <th>Acquirer</th><th>Balance</th><th>Remark</th>
-              </tr>
-            </thead>
-            <tbody id="atmTerminalBody"></tbody>
-          </table>
-        </div>
-      </div>
+        last_row = ws.max_row
+        for i in range(6):
+            ws.cell(row=last_row - i, column=2).number_format = '#,##0.00'
 
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title"><i class="fas fa-chart-bar"></i> Transaction Summary</div>
-        </div>
-        <div class="table-scroll">
-          <table id="atmSummaryTable">
-            <thead>
-              <tr>
-                <th>Sheet Name</th><th>Count</th><th>Total Amount</th><th>Total Fee</th>
-                <th>Transaction Amt</th><th>Unique Cards</th><th>Total 1%</th>
-                <th>1% / 2100</th><th>Amount / 2100</th>
-              </tr>
-            </thead>
-            <tbody id="atmSummaryBody"></tbody>
-          </table>
-        </div>
-      </div>
+        summary_data.append((
+            sheet_name, count, total_amount, total_fee, transaction_amount,
+            total_use_card, total_1_percent, total_1_percent_div_2100, total_amount_div_2100
+        ))
 
-      <!-- Sub-tabs for transaction detail sheets -->
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title"><i class="fas fa-list-alt"></i> Transaction Details</div>
-        </div>
-        <div class="sub-tabs" id="atmSubTabs"></div>
-        <div class="table-scroll" id="atmDetailTableContainer">
-          <div class="empty-state">
-            <i class="fas fa-hand-pointer"></i>
-            <h3>Select a category</h3>
-            <p>Click a tab above to view transaction details</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+    # Add ATM Transfer Details Sheet
+    add_atm_transfer_details_sheet(wb_main, header, sheets["ATM_Transfer_CardToAccount"], amount_idx, fee_idx)
+    
+    # Add Summary Sheet
+    add_summary_sheet(wb_main, summary_data)
+    
+    return terminal_aggregation, terminal_ids, pos_ecom_aggregate, atm_issuer_commission_aggregate
 
-  <!-- ==================== DAILY REPORT TAB ==================== -->
-  <section class="tab-panel" id="tab-daily" role="tabpanel">
-    <div class="instruction-panel">
-      <strong><i class="fas fa-info-circle"></i> Daily Report:</strong>
-      Upload an Excel file for daily transaction processing. Similar categorization as ATM Daily but without terminal-level aggregation.
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title"><i class="fas fa-file-upload"></i> Upload Daily Report File</div>
-      </div>
-      <div class="upload-zone" id="dailyUploadZone">
-        <input type="file" accept=".xls,.xlsx,.xlsm" id="dailyFileInput" aria-label="Upload daily report file">
-        <div class="icon"><i class="fas fa-cloud-upload-alt"></i></div>
-        <h3>Drop your daily Excel file here</h3>
-        <p>Supports .xls, .xlsx, .xlsm formats</p>
-      </div>
-      <div class="file-info" id="dailyFileInfo" style="display:none">
-        <i class="fas fa-file-excel"></i>
-        <div>
-          <div class="file-name" id="dailyFileName"></div>
-          <div class="file-size" id="dailyFileSize"></div>
-        </div>
-        <button class="btn btn-sm btn-outline" style="margin-left:auto" onclick="clearDailyFile()">Clear</button>
-      </div>
-      <div class="progress-container" id="dailyProgress">
-        <div class="progress-label">
-          <span id="dailyProgressText">Processing...</span>
-          <span id="dailyProgressPct">0%</span>
-        </div>
-        <div class="progress-bar"><div class="progress-fill" id="dailyProgressFill"></div></div>
-      </div>
-      <div class="status-msg" id="dailyStatus"></div>
-      <div style="margin-top:16px">
-        <button class="btn btn-primary btn-lg" id="dailyProcessBtn" disabled onclick="processDailyData()">
-          <i class="fas fa-cogs"></i> Process File
-        </button>
-      </div>
-    </div>
-
-    <div id="dailyResults" style="display:none">
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title"><i class="fas fa-chart-bar"></i> Daily Summary</div>
-          <button class="btn btn-sm btn-primary" onclick="exportDailyReport()">
-            <i class="fas fa-download"></i> Export Report
-          </button>
-        </div>
-        <div class="table-scroll">
-          <table id="dailySummaryTable">
-            <thead>
-              <tr>
-                <th>Sheet Name</th><th>Count</th><th>Total Amount</th><th>Total Fee</th>
-                <th>Transaction Amt</th><th>Unique Cards</th><th>Total 1%</th>
-                <th>1% / 2100</th><th>Amount / 2100</th>
-              </tr>
-            </thead>
-            <tbody id="dailySummaryBody"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title"><i class="fas fa-list-alt"></i> Transaction Details</div>
-        </div>
-        <div class="sub-tabs" id="dailySubTabs"></div>
-        <div class="table-scroll" id="dailyDetailTableContainer">
-          <div class="empty-state">
-            <i class="fas fa-hand-pointer"></i>
-            <h3>Select a category</h3>
-            <p>Click a tab above to view transaction details</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ==================== ICBS REPORT TAB ==================== -->
-  <section class="tab-panel" id="tab-icbs" role="tabpanel">
-    <div class="instruction-panel">
-      <strong><i class="fas fa-info-circle"></i> ICBS Report:</strong>
-      Upload ICBS transaction data. The system will parse, validate, and allow you to generate structured reports with filtering and export capabilities.
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title"><i class="fas fa-file-upload"></i> Upload ICBS Data</div>
-      </div>
-      <div class="upload-zone" id="icbsUploadZone">
-        <input type="file" accept=".xls,.xlsx,.xlsm,.csv" id="icbsFileInput" aria-label="Upload ICBS data file">
-        <div class="icon"><i class="fas fa-cloud-upload-alt"></i></div>
-        <h3>Drop your ICBS file here</h3>
-        <p>Supports .xls, .xlsx, .xlsm, .csv formats</p>
-      </div>
-      <div class="file-info" id="icbsFileInfo" style="display:none">
-        <i class="fas fa-file-excel"></i>
-        <div>
-          <div class="file-name" id="icbsFileName"></div>
-          <div class="file-size" id="icbsFileSize"></div>
-        </div>
-        <button class="btn btn-sm btn-outline" style="margin-left:auto" onclick="clearIcbsFile()">Clear</button>
-      </div>
-      <div class="status-msg" id="icbsStatus"></div>
-      <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap">
-        <button class="btn btn-primary btn-lg" id="icbsProcessBtn" disabled onclick="processIcbsData()">
-          <i class="fas fa-cogs"></i> Process ICBS Data
-        </button>
-        <button class="btn btn-accent btn-lg" id="icbsExportBtn" disabled onclick="exportIcbsReport()">
-          <i class="fas fa-download"></i> Export
-        </button>
-      </div>
-    </div>
-
-    <!-- ICBS Filter bar -->
-    <div class="card" id="icbsFilterCard" style="display:none">
-      <div class="card-header">
-        <div class="card-title"><i class="fas fa-filter"></i> Filters</div>
-        <button class="btn btn-sm btn-outline" onclick="clearIcbsFilters()">Reset Filters</button>
-      </div>
-      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:end">
-        <div style="flex:1; min-width:180px">
-          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px">Account Number</label>
-          <input type="text" id="icbsFilterAccount" placeholder="Search account..." style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px" oninput="applyIcbsFilters()">
-        </div>
-        <div style="flex:1; min-width:180px">
-          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px">Description</label>
-          <input type="text" id="icbsFilterDesc" placeholder="Search description..." style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px" oninput="applyIcbsFilters()">
-        </div>
-        <div style="flex:1; min-width:120px">
-          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px">Type</label>
-          <select id="icbsFilterType" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px" onchange="applyIcbsFilters()">
-            <option value="">All</option>
-            <option value="D">Debit</option>
-            <option value="C">Credit</option>
-          </select>
-        </div>
-        <div style="flex:1; min-width:140px">
-          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px">Terminal ID</label>
-          <input type="text" id="icbsFilterTerminal" placeholder="Search TID..." style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px" oninput="applyIcbsFilters()">
-        </div>
-      </div>
-    </div>
-
-    <!-- ICBS Summary -->
-    <div class="summary-grid" id="icbsSummaryGrid" style="display:none"></div>
-
-    <!-- ICBS Table -->
-    <div class="card" id="icbsTableCard" style="display:none">
-      <div class="card-header">
-        <div class="card-title"><i class="fas fa-table"></i> ICBS Transactions</div>
-        <span class="badge badge-blue" id="icbsRowCount">0 rows</span>
-      </div>
-      <div class="table-scroll" style="max-height:600px">
-        <table id="icbsTable">
-          <thead id="icbsTableHead"></thead>
-          <tbody id="icbsTableBody"></tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <!-- ==================== CONVERTER TAB ==================== -->
-  <section class="tab-panel" id="tab-converter" role="tabpanel">
-    <div class="instruction-panel">
-      <strong><i class="fas fa-info-circle"></i> XLS to XLSX Converter:</strong>
-      Upload old-format .xls files to convert them to modern .xlsx format. All sheets and data will be preserved.
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title"><i class="fas fa-exchange-alt"></i> Convert .xls to .xlsx</div>
-      </div>
-      <div class="upload-zone" id="converterUploadZone">
-        <input type="file" accept=".xls" id="converterFileInput" aria-label="Upload XLS file to convert">
-        <div class="icon"><i class="fas fa-file-import"></i></div>
-        <h3>Drop your .xls file here</h3>
-        <p>Only .xls format is accepted for conversion</p>
-      </div>
-      <div class="file-info" id="converterFileInfo" style="display:none">
-        <i class="fas fa-file-excel"></i>
-        <div>
-          <div class="file-name" id="converterFileName"></div>
-          <div class="file-size" id="converterFileSize"></div>
-        </div>
-      </div>
-      <div class="status-msg" id="converterStatus"></div>
-      <div style="margin-top:16px">
-        <button class="btn btn-accent btn-lg" id="converterBtn" disabled onclick="convertFile()">
-          <i class="fas fa-sync-alt"></i> Convert & Download
-        </button>
-      </div>
-    </div>
-  </section>
-
-</main>
-
-<!-- Opening Balances Modal -->
-<div class="modal-overlay" id="openingBalanceModal">
-  <div class="modal">
-    <div class="modal-header">
-      <h3><i class="fas fa-coins" style="color:var(--accent);margin-right:8px"></i>Paste Opening Balances</h3>
-      <button class="modal-close" onclick="closeOpeningBalanceModal()" aria-label="Close modal"><i class="fas fa-times"></i></button>
-    </div>
-    <div class="modal-body">
-      <p style="margin-bottom:12px; color:var(--text-muted); font-size:14px; line-height:1.6">
-        Copy two columns from Excel and paste below:<br>
-        <strong>Column 1:</strong> Terminal ID &nbsp;|&nbsp; <strong>Column 2:</strong> Opening Balance
-      </p>
-      <div style="background:var(--bg); padding:12px 16px; border-radius:6px; margin-bottom:16px; font-family:'Courier New',monospace; font-size:12px; color:var(--text-muted); line-height:1.8">
-        Example format:<br>
-        09950001&nbsp;&nbsp;&nbsp;&nbsp;150000.00<br>
-        09950002&nbsp;&nbsp;&nbsp;&nbsp;200000.00<br>
-        09950003&nbsp;&nbsp;&nbsp;&nbsp;175000.00
-      </div>
-      <textarea class="form-control" id="openingBalanceText" placeholder="Paste your data here..." rows="10"></textarea>
-      <div class="status-msg" id="openingBalanceStatus" style="margin-top:12px"></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeOpeningBalanceModal()">Cancel</button>
-      <button class="btn btn-success" onclick="submitOpeningBalances()">
-        <i class="fas fa-check"></i> Parse & Submit
-      </button>
-    </div>
-  </div>
-</div>
-
-<script>
-// ===================== GLOBAL STATE =====================
-const TERMINAL_IDS = [
-  "09950001","09950002","09950003","09950004","09950005","09950006","09950007","09950008","09950009","09950010",
-  "09950013","09950014","09950015","09950016","09950017","09950018","09950019","09950021","09950024","09950025",
-  "09950026","09950027","09950028","09950029"
-];
-
-const TERMINAL_LOCATIONS = {
-  "09950001":"Dagon","09950002":"Botahtaung","09950003":"MIP","09950004":"MDY","09950005":"NPT MOC 40",
-  "09950006":"Pathein","09950007":"Naypyitaw Br","09950008":"Mawlamyaing","09950009":"Shwe Pauk Kan","09950010":"Magway",
-  "09950013":"Dagon (2)","09950014":"Monywa","09950015":"Hpa-an","09950016":"Dawei","09950017":"DSK",
-  "09950018":"BGO","09950019":"MKN","09950021":"HTY","09950024":"TGI","09950025":"MICT Park",
-  "09950026":"NPT MOC 11","09950027":"NPT MOC 11 (2)","09950028":"NPT MOC 40 (2)","09950029":"NPT Hluttaw"
-};
-
-const TRANSACTION_CATEGORIES = [
-  "ATM_Card_950316","ATM_Issuer_Withdraw","POS_Issuer_Sale",
-  "Ecom_Issuer_Sale","ATM_Withdraw_Fee_NonZero","ATM_Transfer_CardToAccount"
-];
-
-// Store processed data for export
-let atmProcessedData = null;
-let dailyProcessedData = null;
-let icbsProcessedData = null;
-let atmFileBuffer = null;
-let dailyFileBuffer = null;
-let icbsFileBuffer = null;
-let converterFileBuffer = null;
-
-// ===================== UTILITY FUNCTIONS =====================
-
-function toFloatSafe(value) {
-  if (value === null || value === undefined || value === '') return 0.0;
-  try {
-    const s = String(value).replace(/,/g, '').replace(/MMK/gi, '').trim();
-    return parseFloat(s) || 0.0;
-  } catch { return 0.0; }
-}
-
-function formatNumber(n, decimals = 2) {
-  return Number(n).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-}
-
-function findColumnIndex(headers, keyword) {
-  for (let i = 0; i < headers.length; i++) {
-    if (headers[i] && String(headers[i]).toLowerCase().includes(keyword.toLowerCase())) return i;
-  }
-  return -1;
-}
-
-function showToast(message, type = 'info') {
-  const container = document.getElementById('toastContainer');
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', info: 'fa-info-circle' };
-  toast.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i> ${message}`;
-  container.appendChild(toast);
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateX(40px)';
-    toast.style.transition = 'all 0.3s';
-    setTimeout(() => toast.remove(), 300);
-  }, 4000);
-}
-
-function showStatus(elId, msg, type) {
-  const el = document.getElementById(elId);
-  el.className = `status-msg visible ${type}`;
-  const icons = { success: 'fa-check-circle', error: 'fa-times-circle', info: 'fa-info-circle', warning: 'fa-exclamation-triangle' };
-  el.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i> ${msg}`;
-}
-
-function hideStatus(elId) {
-  const el = document.getElementById(elId);
-  el.className = 'status-msg';
-}
-
-function setProgress(prefix, value, text) {
-  const fill = document.getElementById(`${prefix}ProgressFill`);
-  const pct = document.getElementById(`${prefix}ProgressPct`);
-  const txt = document.getElementById(`${prefix}ProgressText`);
-  const container = document.getElementById(`${prefix}Progress`);
-  container.classList.add('visible');
-  fill.style.width = value + '%';
-  pct.textContent = Math.round(value) + '%';
-  if (text) txt.textContent = text;
-}
-
-function hideProgress(prefix) {
-  document.getElementById(`${prefix}Progress`).classList.remove('visible');
-}
-
-function formatFileSize(bytes) {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / 1048576).toFixed(1) + ' MB';
-}
-
-// Parse Excel file using SheetJS
-function parseExcelFile(buffer) {
-  return new Promise((resolve, reject) => {
-    try {
-      const data = new Uint8Array(buffer);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const firstSheet = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheet];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-      resolve({ workbook, jsonData, sheetName: firstSheet });
-    } catch (e) {
-      reject(e);
+def process_atm_transaction_data(ws_main, wb_main):
+    """Process transaction data and create sheets"""
+    # Initialize aggregates for POS & Ecom and ATM Issuer Commission
+    pos_ecom_aggregate = {
+        'count': 0,
+        'amount': 0.0
     }
-  });
-}
-
-// Categorize a single transaction row
-function categorizeTransaction(rowText) {
-  if (rowText.includes('ATM Withdraw') && rowText.includes('950316')) return 'ATM_Card_950316';
-  if (rowText.includes('ATM Issuer Withdraw')) return 'ATM_Issuer_Withdraw';
-  if (rowText.includes('POS Issuer Sale')) return 'POS_Issuer_Sale';
-  if (rowText.includes('Ecom Issuer Sale')) return 'Ecom_Issuer_Sale';
-  if (rowText.includes('ATM Withdraw') && !rowText.includes('950316')) return 'ATM_Withdraw_Fee_NonZero';
-  if (rowText.includes('ATM Transfer') && (rowText.includes('CardToAccount') || rowText.includes('Card to Account'))) return 'ATM_Transfer_CardToAccount';
-  return null;
-}
-
-// Process rows into categorized sheets
-function processRows(rows, header, startRow, amountIdx, feeIdx, cardIdx, refnoIdx) {
-  // Collect reversal ref nos first
-  const reversalRefNos = new Set();
-  for (let i = startRow; i < rows.length; i++) {
-    const row = rows[i];
-    const txt = row.map(c => String(c || '').trim()).join(' ');
-    const refNo = String(row[refnoIdx] || '').trim();
-    if (txt.toLowerCase().includes('reversal') && refNo) {
-      reversalRefNos.add(refNo);
+    
+    atm_issuer_commission_aggregate = {
+        'count': 0,
+        'commission': 0.0
     }
-  }
 
-  const sheets = {};
-  TRANSACTION_CATEGORIES.forEach(c => sheets[c] = []);
+    # Try to find the header row by looking for common keywords
+    header = None
+    header_row = 1
+    
+    # Try to find the header row by looking for common header keywords
+    for row_num in range(1, min(4, ws_main.max_row + 1)):
+        test_header = [cell.value for cell in ws_main[row_num]]
+        header_text = " ".join([str(h).lower() for h in test_header if h])
+        if any(keyword in header_text for keyword in ["terminal", "amount", "fee", "ref"]):
+            header = test_header
+            header_row = row_num
+            break
+    
+    if header is None:
+        # If no header found, use first row
+        header = [cell.value for cell in ws_main[1]]
+    
+    amount_idx = find_column_index(header, "amount")
+    fee_idx = find_column_index(header, "fee")
+    card_idx = find_column_index(header, "card")
+    refno_idx = find_column_index(header, "ref")
+    
+    # Find terminal ID column with multiple attempts
+    terminal_id_idx = -1
+    for keyword in ["terminal id", "terminal", "tid"]:
+        terminal_id_idx = find_column_index(header, keyword)
+        if terminal_id_idx != -1:
+            break
 
-  for (let i = startRow; i < rows.length; i++) {
-    const row = rows[i];
-    const txt = row.map(c => String(c || '').trim()).join(' ');
-    const refNo = String(row[refnoIdx] || '').trim();
+    # Find Tranx Amount and Currency columns
+    tranx_amount_idx = find_column_index(header, "tranx amount")
+    if tranx_amount_idx == -1:
+        tranx_amount_idx = find_column_index(header, "transaction amount")
+    if tranx_amount_idx == -1:
+        tranx_amount_idx = amount_idx  # Fallback to amount column
+    
+    currency_idx = find_column_index(header, "currency")
 
-    // Skip reversals
-    if (refNo && reversalRefNos.has(refNo)) continue;
+    if amount_idx == -1 or fee_idx == -1 or refno_idx == -1:
+        messagebox.showerror("Error",
+            "❌ Could not find 'amount', 'fee', or 'ref no' columns.\n\nDetected headers:\n" +
+            "\n".join([f"{i+1}. {repr(h)}" for i, h in enumerate(header)]))
+        return None, None, None, None, None
 
-    const category = categorizeTransaction(txt);
-    if (category) {
-      sheets[category].push({ rowIndex: i, data: row });
-    }
-  }
+    if terminal_id_idx == -1:
+        messagebox.showerror("Error",
+            "❌ Could not find 'terminal id' column.\n\nDetected headers:\n" +
+            "\n".join([f"{i+1}. {repr(h)}" for i, h in enumerate(header)]))
+        return None, None, None, None, None
 
-  return sheets;
-}
-
-// Calculate summary for a sheet
-function calculateSheetSummary(rows, amountIdx, feeIdx, cardIdx, sheetName) {
-  let totalAmount = 0, totalFee = 0, count = 0;
-  const uniqueCards = new Set();
-
-  rows.forEach(r => {
-    count++;
-    totalAmount += toFloatSafe(r.data[amountIdx]);
-    totalFee += toFloatSafe(r.data[feeIdx]);
-    if (cardIdx >= 0 && r.data[cardIdx]) {
-      uniqueCards.add(String(r.data[cardIdx]).trim());
-    }
-  });
-
-  const transactionAmount = totalAmount - totalFee;
-  const totalUseCard = uniqueCards.size;
-  let total1Percent;
-  if (sheetName === 'ATM_Issuer_Withdraw') {
-    total1Percent = (transactionAmount * 0.01) + transactionAmount;
-  } else {
-    total1Percent = transactionAmount * 0.01;
-  }
-  const total1Div2100 = total1Percent / 2100;
-  const totalDiv2100 = totalAmount / 2100;
-
-  return {
-    sheetName, count, totalAmount, totalFee, transactionAmount,
-    totalUseCard, total1Percent, total1Div2100, totalDiv2100
-  };
-}
-
-// ===================== DARK MODE =====================
-const darkModeBtn = document.getElementById('darkModeBtn');
-let isDark = false;
-
-darkModeBtn.addEventListener('click', () => {
-  isDark = !isDark;
-  document.body.classList.toggle('dark', isDark);
-  darkModeBtn.innerHTML = isDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
-});
-
-// GitHub button
-document.getElementById('githubBtn').addEventListener('click', () => {
-  window.open('https://github.com', '_blank');
-});
-
-// ===================== TAB NAVIGATION =====================
-document.querySelectorAll('.nav-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.nav-tab').forEach(t => {
-      t.classList.remove('active');
-      t.setAttribute('aria-selected', 'false');
-    });
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    tab.classList.add('active');
-    tab.setAttribute('aria-selected', 'true');
-    document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
-  });
-});
-
-// ===================== FILE UPLOAD HANDLING =====================
-
-// Drag & drop setup for all upload zones
-function setupUploadZone(zoneId, inputId, onFileLoaded) {
-  const zone = document.getElementById(zoneId);
-  const input = document.getElementById(inputId);
-
-  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
-  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-  zone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    zone.classList.remove('drag-over');
-    const files = e.dataTransfer.files;
-    if (files.length > 0) onFileLoaded(files[0]);
-  });
-  input.addEventListener('change', (e) => {
-    if (e.target.files.length > 0) onFileLoaded(e.target.files[0]);
-  });
-}
-
-function readFileAsArrayBuffer(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsArrayBuffer(file);
-  });
-}
-
-// --- ATM File Upload ---
-setupUploadZone('atmUploadZone', 'atmFileInput', async (file) => {
-  try {
-    atmFileBuffer = await readFileAsArrayBuffer(file);
-    document.getElementById('atmFileInfo').style.display = 'flex';
-    document.getElementById('atmFileName').textContent = file.name;
-    document.getElementById('atmFileSize').textContent = formatFileSize(file.size);
-    document.getElementById('atmProcessBtn').disabled = false;
-    hideStatus('atmStatus');
-    showToast(`File "${file.name}" loaded successfully`, 'success');
-  } catch (e) {
-    showStatus('atmStatus', 'Failed to read file: ' + e.message, 'error');
-  }
-});
-
-function clearAtmFile() {
-  atmFileBuffer = null;
-  document.getElementById('atmFileInput').value = '';
-  document.getElementById('atmFileInfo').style.display = 'none';
-  document.getElementById('atmProcessBtn').disabled = true;
-  document.getElementById('atmResults').style.display = 'none';
-  hideStatus('atmStatus');
-  hideProgress('atm');
-}
-
-// --- Daily File Upload ---
-setupUploadZone('dailyUploadZone', 'dailyFileInput', async (file) => {
-  try {
-    dailyFileBuffer = await readFileAsArrayBuffer(file);
-    document.getElementById('dailyFileInfo').style.display = 'flex';
-    document.getElementById('dailyFileName').textContent = file.name;
-    document.getElementById('dailyFileSize').textContent = formatFileSize(file.size);
-    document.getElementById('dailyProcessBtn').disabled = false;
-    hideStatus('dailyStatus');
-    showToast(`File "${file.name}" loaded successfully`, 'success');
-  } catch (e) {
-    showStatus('dailyStatus', 'Failed to read file: ' + e.message, 'error');
-  }
-});
-
-function clearDailyFile() {
-  dailyFileBuffer = null;
-  document.getElementById('dailyFileInput').value = '';
-  document.getElementById('dailyFileInfo').style.display = 'none';
-  document.getElementById('dailyProcessBtn').disabled = true;
-  document.getElementById('dailyResults').style.display = 'none';
-  hideStatus('dailyStatus');
-  hideProgress('daily');
-}
-
-// --- ICBS File Upload ---
-setupUploadZone('icbsUploadZone', 'icbsFileInput', async (file) => {
-  try {
-    icbsFileBuffer = await readFileAsArrayBuffer(file);
-    document.getElementById('icbsFileInfo').style.display = 'flex';
-    document.getElementById('icbsFileName').textContent = file.name;
-    document.getElementById('icbsFileSize').textContent = formatFileSize(file.size);
-    document.getElementById('icbsProcessBtn').disabled = false;
-    hideStatus('icbsStatus');
-    showToast(`File "${file.name}" loaded successfully`, 'success');
-  } catch (e) {
-    showStatus('icbsStatus', 'Failed to read file: ' + e.message, 'error');
-  }
-});
-
-function clearIcbsFile() {
-  icbsFileBuffer = null;
-  icbsProcessedData = null;
-  document.getElementById('icbsFileInput').value = '';
-  document.getElementById('icbsFileInfo').style.display = 'none';
-  document.getElementById('icbsProcessBtn').disabled = true;
-  document.getElementById('icbsExportBtn').disabled = true;
-  document.getElementById('icbsFilterCard').style.display = 'none';
-  document.getElementById('icbsSummaryGrid').style.display = 'none';
-  document.getElementById('icbsTableCard').style.display = 'none';
-  hideStatus('icbsStatus');
-}
-
-// --- Converter File Upload ---
-setupUploadZone('converterUploadZone', 'converterFileInput', async (file) => {
-  if (!file.name.toLowerCase().endsWith('.xls')) {
-    showStatus('converterStatus', 'Please select a .xls file (old Excel format)', 'error');
-    return;
-  }
-  try {
-    converterFileBuffer = await readFileAsArrayBuffer(file);
-    document.getElementById('converterFileInfo').style.display = 'flex';
-    document.getElementById('converterFileName').textContent = file.name;
-    document.getElementById('converterFileSize').textContent = formatFileSize(file.size);
-    document.getElementById('converterBtn').disabled = false;
-    hideStatus('converterStatus');
-    showToast(`File "${file.name}" loaded for conversion`, 'success');
-  } catch (e) {
-    showStatus('converterStatus', 'Failed to read file: ' + e.message, 'error');
-  }
-});
-
-// ===================== ATM PROCESSING =====================
-async function processAtmData() {
-  if (!atmFileBuffer) return;
-
-  setProgress('atm', 10, 'Parsing Excel file...');
-
-  let parsed;
-  try {
-    parsed = await parseExcelFile(atmFileBuffer);
-  } catch (e) {
-    showStatus('atmStatus', 'Failed to parse Excel file: ' + e.message, 'error');
-    hideProgress('atm');
-    return;
-  }
-
-  const rows = parsed.jsonData;
-  if (rows.length < 2) {
-    showStatus('atmStatus', 'File appears to be empty or has no data rows.', 'error');
-    hideProgress('atm');
-    return;
-  }
-
-  setProgress('atm', 30, 'Finding header columns...');
-
-  // Find header row
-  let header = null;
-  let headerRow = 0;
-  for (let r = 0; r < Math.min(3, rows.length); r++) {
-    const testHeader = rows[r];
-    const headerText = testHeader.map(h => String(h || '').toLowerCase()).join(' ');
-    if (headerText.includes('terminal') || headerText.includes('amount') || headerText.includes('ref')) {
-      header = testHeader;
-      headerRow = r;
-      break;
-    }
-  }
-  if (!header) header = rows[0];
-
-  const amountIdx = findColumnIndex(header, 'amount');
-  const feeIdx = findColumnIndex(header, 'fee');
-  const cardIdx = findColumnIndex(header, 'card');
-  const refnoIdx = findColumnIndex(header, 'ref');
-  let terminalIdIdx = -1;
-  for (const kw of ['terminal id', 'terminal', 'tid']) {
-    terminalIdIdx = findColumnIndex(header, kw);
-    if (terminalIdIdx >= 0) break;
-  }
-
-  if (amountIdx < 0 || feeIdx < 0 || refnoIdx < 0) {
-    showStatus('atmStatus', `Could not find required columns (amount, fee, ref no). Detected headers: ${header.map((h,i) => `${i+1}.${h}`).join(', ')}`, 'error');
-    hideProgress('atm');
-    return;
-  }
-  if (terminalIdIdx < 0) {
-    showStatus('atmStatus', `Could not find 'terminal id' column. Detected headers: ${header.map((h,i) => `${i+1}.${h}`).join(', ')}`, 'error');
-    hideProgress('atm');
-    return;
-  }
-
-  setProgress('atm', 50, 'Categorizing transactions...');
-
-  const sheets = processRows(rows, header, headerRow + 1, amountIdx, feeIdx, cardIdx, refnoIdx);
-
-  // Terminal aggregation
-  const terminalAggregation = {};
-  const terminalTransactions = {};
-  TERMINAL_IDS.forEach(tid => {
-    terminalAggregation[tid] = {
-      atm_issuer_withdraw_count: 0, atm_issuer_withdraw_amount: 0,
-      atm_card_950316_amount: 0, atm_withdraw_fee_nonzero_amount: 0,
-      atm_withdraw_fee_nonzero_trx_amount: 0, atm_withdraw_nonzero_count: 0
-    };
-    terminalTransactions[tid] = [];
-  });
-
-  let posEcomCount = 0, posEcomAmount = 0;
-  let issuerCommissionCount = 0, issuerCommission = 0;
-  let cardToCardCount = 0, cardToCardAmount = 0;
-
-  // Re-scan for terminal-level aggregation
-  const reversalRefNos = new Set();
-  for (let i = headerRow + 1; i < rows.length; i++) {
-    const row = rows[i];
-    const txt = row.map(c => String(c || '').trim()).join(' ');
-    const refNo = String(row[refnoIdx] || '').trim();
-    if (txt.toLowerCase().includes('reversal') && refNo) reversalRefNos.add(refNo);
-  }
-
-  for (let i = headerRow + 1; i < rows.length; i++) {
-    const row = rows[i];
-    const txt = row.map(c => String(c || '').trim()).join(' ');
-    const refNo = String(row[refnoIdx] || '').trim();
-    if (refNo && reversalRefNos.has(refNo)) continue;
-
-    const tid = String(row[terminalIdIdx] || '').trim();
-    const amount = toFloatSafe(row[amountIdx]);
-    const fee = toFloatSafe(row[feeIdx]);
-
-    if (TERMINAL_IDS.includes(tid)) {
-      terminalTransactions[tid].push(row);
-
-      if (txt.includes('ATM Withdraw') && txt.includes('950316')) {
-        terminalAggregation[tid].atm_card_950316_amount += amount;
-      } else if (txt.includes('ATM Issuer Withdraw')) {
-        if (amount > 0) terminalAggregation[tid].atm_issuer_withdraw_count++;
-        terminalAggregation[tid].atm_issuer_withdraw_amount += amount;
-        if (amount > 0) {
-          issuerCommissionCount++;
-          issuerCommission += amount * 0.01;
+    # Initialize terminal aggregation dictionary
+    terminal_aggregation = {}
+    terminal_ids = [
+        "09950001", "09950002", "09950003", "09950004", "09950005", "09950006", "09950007", "09950008", "09950009", "09950010",
+        "09950013", "09950014", "09950015", "09950016", "09950017", "09950018", "09950019", "09950021", "09950024", "09950025",
+        "09950026", "09950027", "09950028", "09950029"
+    ]
+    
+    # Initialize terminal transactions dictionary
+    terminal_transactions = {}
+    for tid in terminal_ids:
+        terminal_aggregation[tid] = {
+            'atm_issuer_withdraw_count': 0,
+            'atm_issuer_withdraw_amount': 0.0,
+            'atm_card_950316_amount': 0.0,
+            'atm_withdraw_fee_nonzero_amount': 0.0,
+            'atm_withdraw_fee_nonzero_trx_amount': 0.0,
+            'atm_withdraw_nonzero_count': 0  # Count of ATM withdrawal transactions with non-zero amounts
         }
-      } else if (txt.includes('POS Issuer Sale') || txt.includes('Ecom Issuer Sale')) {
-        if (amount > 0) {
-          posEcomCount++;
-          posEcomAmount += amount;
-        }
-      } else if (txt.includes('ATM Withdraw') && !txt.includes('950316')) {
-        terminalAggregation[tid].atm_withdraw_fee_nonzero_trx_amount += amount;
-        terminalAggregation[tid].atm_withdraw_fee_nonzero_amount += fee;
-      }
-
-      if (amount > 0 && txt.includes('ATM Withdraw')) {
-        terminalAggregation[tid].atm_withdraw_nonzero_count++;
-      }
-    }
-  }
-
-  setProgress('atm', 70, 'Waiting for opening balances...');
-
-  // Show opening balance modal
-  const openingBalances = await showOpeningBalanceModal();
-  if (openingBalances === null) {
-    showStatus('atmStatus', 'Opening balance entry was canceled.', 'warning');
-    hideProgress('atm');
-    return;
-  }
-
-  setProgress('atm', 85, 'Generating report...');
-
-  // Calculate summaries
-  const summaryData = [];
-  TRANSACTION_CATEGORIES.forEach(cat => {
-    if (sheets[cat].length > 0 || ['ATM_Withdraw_Fee_NonZero', 'ATM_Transfer_CardToAccount'].includes(cat)) {
-      summaryData.push(calculateSheetSummary(sheets[cat], amountIdx, feeIdx, cardIdx, cat));
-    }
-  });
-
-  // Store all data for export and display
-  atmProcessedData = {
-    header, sheets, summaryData, terminalAggregation, terminalTransactions,
-    openingBalances, posEcomCount, posEcomAmount, issuerCommissionCount,
-    issuerCommission, cardToCardCount, cardToCardAmount
-  };
-
-  setProgress('atm', 100, 'Complete!');
-  renderAtmResults();
-  showStatus('atmStatus', 'Processing complete. Review results below.', 'success');
-  showToast('ATM transaction file processed successfully', 'success');
-}
-
-function renderAtmResults() {
-  if (!atmProcessedData) return;
-  const d = atmProcessedData;
-
-  // Summary grid
-  const grid = document.getElementById('atmSummaryGrid');
-  const totalTrans = d.summaryData.reduce((s, x) => s + x.count, 0);
-  const totalAmt = d.summaryData.reduce((s, x) => s + x.totalAmount, 0);
-  const totalFee = d.summaryData.reduce((s, x) => s + x.totalFee, 0);
-  grid.innerHTML = `
-    <div class="stat-card blue"><div class="stat-label">Total Transactions</div><div class="stat-value">${totalTrans.toLocaleString()}</div><div class="stat-sub">Across all categories</div></div>
-    <div class="stat-card gold"><div class="stat-label">Total Amount</div><div class="stat-value">${formatNumber(totalAmt)}</div><div class="stat-sub">MMK</div></div>
-    <div class="stat-card green"><div class="stat-label">Total Fee</div><div class="stat-value">${formatNumber(totalFee)}</div><div class="stat-sub">MMK</div></div>
-    <div class="stat-card red"><div class="stat-label">Net Transaction</div><div class="stat-value">${formatNumber(totalAmt - totalFee)}</div><div class="stat-sub">Amount - Fee</div></div>
-  `;
-  grid.style.display = 'grid';
-
-  // Terminal details table
-  const tbody = document.getElementById('atmTerminalBody');
-  let html = '';
-  let sn = 1;
-  TERMINAL_IDS.forEach(tid => {
-    const agg = d.terminalAggregation[tid];
-    const opening = d.openingBalances[tid] || 0;
-    const trans = agg.atm_withdraw_nonzero_count;
-    const issuer = agg.atm_issuer_withdraw_amount + agg.atm_card_950316_amount;
-    const acquirer = agg.atm_withdraw_fee_nonzero_trx_amount - agg.atm_withdraw_fee_nonzero_amount;
-    const balance = opening - issuer - acquirer;
-    const loc = TERMINAL_LOCATIONS[tid] || '';
-    html += `<tr>
-      <td>${sn++}</td>
-      <td class="text-primary">${tid}</td>
-      <td>${loc}</td>
-      <td class="num">${formatNumber(opening)}</td>
-      <td class="num">${trans}</td>
-      <td class="num">${formatNumber(issuer)}</td>
-      <td class="num">${formatNumber(acquirer)}</td>
-      <td class="num ${balance < 0 ? 'text-red' : 'text-green'}">${formatNumber(balance)}</td>
-      <td></td>
-    </tr>`;
-  });
-
-  // POS & Ecom row
-  html += `<tr class="highlight-row">
-    <td></td><td colspan="2">POS & Ecommerce Amount</td><td></td>
-    <td class="num">${d.posEcomCount}</td><td></td><td></td>
-    <td class="num text-accent">${formatNumber(d.posEcomAmount)}</td><td></td>
-  </tr>`;
-  // Issuer Off us row
-  html += `<tr class="highlight-row">
-    <td></td><td colspan="2">Issuer Off us & Commission (Paid)</td><td></td>
-    <td class="num">${d.issuerCommissionCount}</td><td></td><td></td>
-    <td class="num text-accent">${formatNumber(d.issuerCommission)}</td><td></td>
-  </tr>`;
-
-  tbody.innerHTML = html;
-
-  // Summary table
-  const sumBody = document.getElementById('atmSummaryBody');
-  let sumHtml = '';
-  d.summaryData.forEach((s, i) => {
-    const isHighlight = ['E2','E4','E5','E6','E7'].some(c => {
-      const row = parseInt(c.slice(1)) - 1;
-      const col = c[0];
-      return (col === 'E' && i === row) || (col === 'G' && i === 2 && ['H3'].includes(c));
-    });
-    sumHtml += `<tr>
-      <td><span class="badge badge-blue">${s.sheetName}</span></td>
-      <td class="num">${s.count}</td>
-      <td class="num">${formatNumber(s.totalAmount)}</td>
-      <td class="num">${formatNumber(s.totalFee)}</td>
-      <td class="num text-green" style="font-weight:600">${formatNumber(s.transactionAmount)}</td>
-      <td class="num">${s.totalUseCard}</td>
-      <td class="num">${formatNumber(s.total1Percent)}</td>
-      <td class="num">${formatNumber(s.total1Div2100)}</td>
-      <td class="num">${formatNumber(s.totalDiv2100)}</td>
-    </tr>`;
-  });
-  sumBody.innerHTML = sumHtml;
-
-  // Sub-tabs for transaction details
-  const subTabs = document.getElementById('atmSubTabs');
-  let tabHtml = '';
-  TRANSACTION_CATEGORIES.forEach((cat, i) => {
-    const count = (d.sheets[cat] || []).length;
-    tabHtml += `<button class="sub-tab ${i === 0 ? 'active' : ''}" onclick="showAtmDetail('${cat}', this)">${cat.replace(/_/g,' ')} (${count})</button>`;
-  });
-  subTabs.innerHTML = tabHtml;
-
-  // Show first category
-  if (TRANSACTION_CATEGORIES.length > 0) {
-    showAtmDetail(TRANSACTION_CATEGORIES[0]);
-  }
-
-  document.getElementById('atmResults').style.display = 'block';
-}
-
-function showAtmDetail(category, tabBtn) {
-  if (!atmProcessedData) return;
-  if (tabBtn) {
-    document.querySelectorAll('#atmSubTabs .sub-tab').forEach(t => t.classList.remove('active'));
-    tabBtn.classList.add('active');
-  }
-
-  const container = document.getElementById('atmDetailTableContainer');
-  const rows = atmProcessedData.sheets[category] || [];
-  const header = atmProcessedData.header;
-
-  if (rows.length === 0) {
-    container.innerHTML = `<div class="empty-state"><i class="fas fa-inbox"></i><h3>No transactions</h3><p>No transactions found in this category.</p></div>`;
-    return;
-  }
-
-  let html = '<table><thead><tr>';
-  header.forEach(h => { html += `<th>${h || ''}</th>`; });
-  html += '</tr></thead><tbody>';
-  rows.forEach(r => {
-    html += '<tr>';
-    r.data.forEach(cell => {
-      const val = cell !== null && cell !== undefined ? cell : '';
-      html += `<td>${val}</td>`;
-    });
-    html += '</tr>';
-  });
-  html += '</tbody></table>';
-  container.innerHTML = html;
-}
-
-// ===================== OPENING BALANCE MODAL =====================
-function showOpeningBalanceModal() {
-  return new Promise((resolve) => {
-    const modal = document.getElementById('openingBalanceModal');
-    const textarea = document.getElementById('openingBalanceText');
-    textarea.value = '';
-    hideStatus('openingBalanceStatus');
-    modal.classList.add('visible');
-
-    // Store resolve function for later use
-    modal._resolve = resolve;
-
-    // Focus textarea
-    setTimeout(() => textarea.focus(), 300);
-  });
-}
-
-function closeOpeningBalanceModal() {
-  const modal = document.getElementById('openingBalanceModal');
-  modal.classList.remove('visible');
-  if (modal._resolve) {
-    modal._resolve(null);
-    modal._resolve = null;
-  }
-}
-
-function submitOpeningBalances() {
-  const modal = document.getElementById('openingBalanceModal');
-  const text = document.getElementById('openingBalanceText').value;
-  const lines = text.trim().split('\n');
-
-  const balances = {};
-  const twoColPattern = /^([^\t]+)\t([^\t]+)$/;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    const match = trimmed.match(twoColPattern);
-    if (match) {
-      let tid = match[1].trim().replace(/[^\w]/g, '');
-      const balStr = match[2].trim();
-      if (TERMINAL_IDS.includes(tid)) {
-        balances[tid] = toFloatSafe(balStr);
-      }
-    }
-  }
-
-  if (Object.keys(balances).length === 0) {
-    showStatus('openingBalanceStatus', 'No valid opening balances found. Check the format (Tab-separated: TerminalID\\tBalance).', 'error');
-    return;
-  }
-
-  const missing = TERMINAL_IDS.filter(t => !(t in balances));
-  if (missing.length > 0) {
-    // Auto-fill 0 for missing terminals
-    missing.forEach(t => balances[t] = 0);
-    showStatus('openingBalanceStatus', `Parsed ${Object.keys(balances).length - missing.length} balances. ${missing.length} terminals set to 0.00.`, 'warning');
-  } else {
-    showStatus('openingBalanceStatus', `All ${Object.keys(balances).length} opening balances parsed successfully.`, 'success');
-  }
-
-  // Close modal after short delay to show success message
-  setTimeout(() => {
-    modal.classList.remove('visible');
-    if (modal._resolve) {
-      modal._resolve(balances);
-      modal._resolve = null;
-    }
-  }, 600);
-}
-
-// ===================== DAILY PROCESSING =====================
-async function processDailyData() {
-  if (!dailyFileBuffer) return;
-
-  setProgress('daily', 10, 'Parsing Excel file...');
-
-  let parsed;
-  try {
-    parsed = await parseExcelFile(dailyFileBuffer);
-  } catch (e) {
-    showStatus('dailyStatus', 'Failed to parse Excel file: ' + e.message, 'error');
-    hideProgress('daily');
-    return;
-  }
-
-  const rows = parsed.jsonData;
-  if (rows.length < 2) {
-    showStatus('dailyStatus', 'File appears to be empty.', 'error');
-    hideProgress('daily');
-    return;
-  }
-
-  setProgress('daily', 30, 'Finding header columns...');
-
-  // Daily report uses row 2 (index 1) as header
-  let header = rows.length >= 2 ? rows[1] : rows[0];
-  let startRow = rows.length >= 2 ? 2 : 1;
-
-  const amountIdx = findColumnIndex(header, 'amount');
-  const feeIdx = findColumnIndex(header, 'fee');
-  const cardIdx = findColumnIndex(header, 'card');
-  const refnoIdx = findColumnIndex(header, 'ref');
-
-  if (amountIdx < 0 || feeIdx < 0 || refnoIdx < 0) {
-    showStatus('dailyStatus', `Could not find required columns. Detected headers: ${header.map((h,i) => `${i+1}.${h}`).join(', ')}`, 'error');
-    hideProgress('daily');
-    return;
-  }
-
-  setProgress('daily', 50, 'Categorizing transactions...');
-
-  const sheets = processRows(rows, header, startRow, amountIdx, feeIdx, cardIdx, refnoIdx);
-
-  setProgress('daily', 80, 'Calculating summaries...');
-
-  const summaryData = [];
-  TRANSACTION_CATEGORIES.forEach(cat => {
-    if (sheets[cat].length > 0 || ['ATM_Withdraw_Fee_NonZero', 'ATM_Transfer_CardToAccount'].includes(cat)) {
-      summaryData.push(calculateSheetSummary(sheets[cat], amountIdx, feeIdx, cardIdx, cat));
-    }
-  });
-
-  dailyProcessedData = { header, sheets, summaryData };
-
-  setProgress('daily', 100, 'Complete!');
-  renderDailyResults();
-  showStatus('dailyStatus', 'Daily report processed successfully.', 'success');
-  showToast('Daily report processed successfully', 'success');
-}
-
-function renderDailyResults() {
-  if (!dailyProcessedData) return;
-  const d = dailyProcessedData;
-
-  // Summary table
-  const sumBody = document.getElementById('dailySummaryBody');
-  let sumHtml = '';
-  d.summaryData.forEach(s => {
-    sumHtml += `<tr>
-      <td><span class="badge badge-blue">${s.sheetName}</span></td>
-      <td class="num">${s.count}</td>
-      <td class="num">${formatNumber(s.totalAmount)}</td>
-      <td class="num">${formatNumber(s.totalFee)}</td>
-      <td class="num text-green" style="font-weight:600">${formatNumber(s.transactionAmount)}</td>
-      <td class="num">${s.totalUseCard}</td>
-      <td class="num">${formatNumber(s.total1Percent)}</td>
-      <td class="num">${formatNumber(s.total1Div2100)}</td>
-      <td class="num">${formatNumber(s.totalDiv2100)}</td>
-    </tr>`;
-  });
-  sumBody.innerHTML = sumHtml;
-
-  // Sub-tabs
-  const subTabs = document.getElementById('dailySubTabs');
-  let tabHtml = '';
-  TRANSACTION_CATEGORIES.forEach((cat, i) => {
-    const count = (d.sheets[cat] || []).length;
-    tabHtml += `<button class="sub-tab ${i === 0 ? 'active' : ''}" onclick="showDailyDetail('${cat}', this)">${cat.replace(/_/g,' ')} (${count})</button>`;
-  });
-  subTabs.innerHTML = tabHtml;
-
-  if (TRANSACTION_CATEGORIES.length > 0) showDailyDetail(TRANSACTION_CATEGORIES[0]);
-
-  document.getElementById('dailyResults').style.display = 'block';
-}
-
-function showDailyDetail(category, tabBtn) {
-  if (!dailyProcessedData) return;
-  if (tabBtn) {
-    document.querySelectorAll('#dailySubTabs .sub-tab').forEach(t => t.classList.remove('active'));
-    tabBtn.classList.add('active');
-  }
-
-  const container = document.getElementById('dailyDetailTableContainer');
-  const rows = dailyProcessedData.sheets[category] || [];
-  const header = dailyProcessedData.header;
-
-  if (rows.length === 0) {
-    container.innerHTML = `<div class="empty-state"><i class="fas fa-inbox"></i><h3>No transactions</h3><p>No transactions in this category.</p></div>`;
-    return;
-  }
-
-  let html = '<table><thead><tr>';
-  header.forEach(h => { html += `<th>${h || ''}</th>`; });
-  html += '</tr></thead><tbody>';
-  rows.forEach(r => {
-    html += '<tr>';
-    r.data.forEach(cell => {
-      html += `<td>${cell !== null && cell !== undefined ? cell : ''}</td>`;
-    });
-    html += '</tr>';
-  });
-  html += '</tbody></table>';
-  container.innerHTML = html;
-}
-
-// ===================== ICBS PROCESSING =====================
-async function processIcbsData() {
-  if (!icbsFileBuffer) return;
-
-  showStatus('icbsStatus', 'Parsing file...', 'info');
-
-  let parsed;
-  try {
-    parsed = await parseExcelFile(icbsFileBuffer);
-  } catch (e) {
-    showStatus('icbsStatus', 'Failed to parse file: ' + e.message, 'error');
-    return;
-  }
-
-  const rows = parsed.jsonData;
-  if (rows.length < 2) {
-    showStatus('icbsStatus', 'File is empty or has no data rows.', 'error');
-    return;
-  }
-
-  // Find header
-  let header = rows[0];
-  let startRow = 1;
-  for (let r = 0; r < Math.min(3, rows.length); r++) {
-    const txt = rows[r].map(h => String(h || '').toLowerCase()).join(' ');
-    if (txt.includes('account') || txt.includes('debit') || txt.includes('credit') || txt.includes('trans')) {
-      header = rows[r];
-      startRow = r + 1;
-      break;
-    }
-  }
-
-  const dataRows = rows.slice(startRow).filter(r => r.some(c => c !== ''));
-
-  icbsProcessedData = { header, rows: dataRows, allRows: dataRows };
-
-  renderIcbsResults();
-  showStatus('icbsStatus', `Loaded ${dataRows.length} transactions successfully.`, 'success');
-  showToast(`ICBS: ${dataRows.length} transactions loaded`, 'success');
-}
-
-function renderIcbsResults() {
-  if (!icbsProcessedData) return;
-  const d = icbsProcessedData;
-  const header = d.header;
-
-  // Summary grid
-  const grid = document.getElementById('icbsSummaryGrid');
-  let totalDebit = 0, totalCredit = 0, debitCount = 0, creditCount = 0;
-  d.rows.forEach(r => {
-    // Try to find debit/credit columns
-    const debitIdx = findColumnIndex(header, 'debit');
-    const creditIdx = findColumnIndex(header, 'credit');
-    const ttIdx = findColumnIndex(header, 't/t');
-    if (debitIdx >= 0) {
-      const dv = toFloatSafe(r[debitIdx]);
-      if (dv > 0) { totalDebit += dv; debitCount++; }
-    }
-    if (creditIdx >= 0) {
-      const cv = toFloatSafe(r[creditIdx]);
-      if (cv > 0) { totalCredit += cv; creditCount++; }
-    }
-  });
-
-  grid.innerHTML = `
-    <div class="stat-card blue"><div class="stat-label">Total Rows</div><div class="stat-value">${d.rows.length.toLocaleString()}</div></div>
-    <div class="stat-card red"><div class="stat-label">Total Debit</div><div class="stat-value">${formatNumber(totalDebit)}</div><div class="stat-sub">${debitCount} transactions</div></div>
-    <div class="stat-card green"><div class="stat-label">Total Credit</div><div class="stat-value">${formatNumber(totalCredit)}</div><div class="stat-sub">${creditCount} transactions</div></div>
-    <div class="stat-card gold"><div class="stat-label">Net</div><div class="stat-value">${formatNumber(totalCredit - totalDebit)}</div><div class="stat-sub">Credit - Debit</div></div>
-  `;
-  grid.style.display = 'grid';
-
-  // Table
-  document.getElementById('icbsTableHead').innerHTML = '<tr>' + header.map(h => `<th>${h || ''}</th>`).join('') + '</tr>';
-  renderIcbsTableBody(d.rows);
-
-  document.getElementById('icbsFilterCard').style.display = 'block';
-  document.getElementById('icbsTableCard').style.display = 'block';
-  document.getElementById('icbsExportBtn').disabled = false;
-}
-
-function renderIcbsTableBody(rows) {
-  if (!icbsProcessedData) return;
-  const tbody = document.getElementById('icbsTableBody');
-  const header = icbsProcessedData.header;
-  const debitIdx = findColumnIndex(header, 'debit');
-  const creditIdx = findColumnIndex(header, 'credit');
-
-  let html = '';
-  rows.forEach(r => {
-    html += '<tr>';
-    r.forEach((cell, i) => {
-      let cls = '';
-      if (i === debitIdx && toFloatSafe(cell) > 0) cls = 'text-red num';
-      else if (i === creditIdx && toFloatSafe(cell) > 0) cls = 'text-green num';
-      else if (i === debitIdx || i === creditIdx) cls = 'num';
-      html += `<td class="${cls}">${cell !== null && cell !== undefined ? cell : ''}</td>`;
-    });
-    html += '</tr>';
-  });
-  tbody.innerHTML = html;
-  document.getElementById('icbsRowCount').textContent = rows.length + ' rows';
-}
-
-function applyIcbsFilters() {
-  if (!icbsProcessedData) return;
-  const d = icbsProcessedData;
-  const accountFilter = document.getElementById('icbsFilterAccount').value.trim().toLowerCase();
-  const descFilter = document.getElementById('icbsFilterDesc').value.trim().toLowerCase();
-  const typeFilter = document.getElementById('icbsFilterType').value;
-  const terminalFilter = document.getElementById('icbsFilterTerminal').value.trim().toLowerCase();
-
-  const header = d.header;
-  const acctIdx = findColumnIndex(header, 'account');
-  const descIdx = findColumnIndex(header, 'description');
-  const ttIdx = findColumnIndex(header, 't/t');
-  const termIdx = findColumnIndex(header, 'terminal');
-
-  const filtered = d.allRows.filter(r => {
-    if (accountFilter && acctIdx >= 0) {
-      if (!String(r[acctIdx] || '').toLowerCase().includes(accountFilter)) return false;
-    }
-    if (descFilter && descIdx >= 0) {
-      if (!String(r[descIdx] || '').toLowerCase().includes(descFilter)) return false;
-    }
-    if (typeFilter && ttIdx >= 0) {
-      if (String(r[ttIdx] || '').trim().toUpperCase() !== typeFilter) return false;
-    }
-    if (terminalFilter && termIdx >= 0) {
-      if (!String(r[termIdx] || '').toLowerCase().includes(terminalFilter)) return false;
-    }
-    return true;
-  });
-
-  d.rows = filtered;
-  renderIcbsTableBody(filtered);
-}
-
-function clearIcbsFilters() {
-  document.getElementById('icbsFilterAccount').value = '';
-  document.getElementById('icbsFilterDesc').value = '';
-  document.getElementById('icbsFilterType').value = '';
-  document.getElementById('icbsFilterTerminal').value = '';
-  if (icbsProcessedData) {
-    icbsProcessedData.rows = icbsProcessedData.allRows;
-    renderIcbsTableBody(icbsProcessedData.allRows);
-  }
-}
-
-// ===================== CONVERTER =====================
-async function convertFile() {
-  if (!converterFileBuffer) return;
-
-  showStatus('converterStatus', 'Converting .xls to .xlsx...', 'info');
-
-  try {
-    const data = new Uint8Array(converterFileBuffer);
-    const wb = XLSX.read(data, { type: 'array' });
-    const outBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([outBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = document.getElementById('converterFileName').textContent.replace(/\.xls$/i, '_converted.xlsx');
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showStatus('converterStatus', 'File converted and downloaded successfully.', 'success');
-    showToast('File converted successfully', 'success');
-  } catch (e) {
-    showStatus('converterStatus', 'Conversion failed: ' + e.message, 'error');
-  }
-}
-
-// ===================== EXPORT FUNCTIONS =====================
-function exportAtmReport() {
-  if (!atmProcessedData) return;
-  const d = atmProcessedData;
-
-  const wb = XLSX.utils.book_new();
-
-  // Terminal Details sheet
-  const terminalData = [];
-  terminalData.push(['S/N', 'Terminal ID', 'Location', 'Opening Balance', 'Trans', 'Issuer', 'Acquirer', 'Balance', 'Remark']);
-  let sn = 1;
-  TERMINAL_IDS.forEach(tid => {
-    const agg = d.terminalAggregation[tid];
-    const opening = d.openingBalances[tid] || 0;
-    const trans = agg.atm_withdraw_nonzero_count;
-    const issuer = agg.atm_issuer_withdraw_amount + agg.atm_card_950316_amount;
-    const acquirer = agg.atm_withdraw_fee_nonzero_trx_amount - agg.atm_withdraw_fee_nonzero_amount;
-    const balance = opening - issuer - acquirer;
-    terminalData.push([sn++, tid, TERMINAL_LOCATIONS[tid] || '', opening, trans, issuer, acquirer, balance, '']);
-  });
-  terminalData.push(['', 'POS & Ecommerce Amount', '', '', d.posEcomCount, '', '', d.posEcomAmount, '']);
-  terminalData.push(['', 'Issuer Off us & Commission (Paid)', '', '', d.issuerCommissionCount, '', '', d.issuerCommission, '']);
-  const wsTerminal = XLSX.utils.aoa_to_sheet(terminalData);
-  XLSX.utils.book_append_sheet(wb, wsTerminal, 'Terminal Details');
-
-  // Category sheets
-  TRANSACTION_CATEGORIES.forEach(cat => {
-    const rows = d.sheets[cat] || [];
-    const sheetData = [d.header];
-    rows.forEach(r => sheetData.push(r.data));
-
-    // Add summary rows
-    const summary = d.summaryData.find(s => s.sheetName === cat);
-    if (summary) {
-      sheetData.push([]);
-      sheetData.push(['Total Count', summary.count]);
-      sheetData.push(['Total Amount', summary.totalAmount]);
-      sheetData.push(['Total Fee', summary.totalFee]);
-      sheetData.push(['Transaction Amount', summary.transactionAmount]);
-      sheetData.push(['Total Use Card', summary.totalUseCard]);
-      sheetData.push(['Total 1%', summary.total1Percent]);
-      sheetData.push(['Total 1% / 2100', summary.total1Div2100]);
-      sheetData.push(['Total / 2100', summary.totalDiv2100]);
+        terminal_transactions[tid] = []
+
+    # Step 1: collect reversal Ref Nos
+    reversal_ref_nos = set()
+    for row in ws_main.iter_rows(min_row=header_row + 1):
+        txt = " ".join([str(cell.value).strip() if cell.value else '' for cell in row])
+        ref_no = str(row[refno_idx].value).strip() if row[refno_idx].value else ""
+        if "reversal" in txt.lower() and ref_no:
+            reversal_ref_nos.add(ref_no)
+
+    # Step 2: process transactions using group_and_copy
+    result = group_and_copy_atm(
+        ws_main, wb_main, header, amount_idx, fee_idx, card_idx, refno_idx, 
+        terminal_id_idx, terminal_aggregation, terminal_transactions, terminal_ids, 
+        pos_ecom_aggregate, atm_issuer_commission_aggregate, reversal_ref_nos
+    )
+    
+    if result[0] is None:
+        return None, None, None, None, None
+    
+    # Add Terminal Transaction Sheets with detailed transactions
+    add_terminal_transaction_sheets(wb_main, terminal_transactions, header)
+    
+    return terminal_aggregation, terminal_ids, pos_ecom_aggregate, atm_issuer_commission_aggregate
+
+def convert_xls_to_xlsx(xls_path):
+    try:
+        xls = pd.ExcelFile(xls_path, engine='xlrd')
+        first_sheet = xls.sheet_names[0]
+        df = pd.read_excel(xls, sheet_name=first_sheet)
+
+        xlsx_path = xls_path + "_converted.xlsx"
+        df.to_excel(xlsx_path, sheet_name="Sheet1", index=False)
+        return xlsx_path
+    except Exception as e:
+        messagebox.showerror("Conversion Error", f"❌ Failed to convert .xls to .xlsx\n\n{e}")
+        return None
+
+def load_atm_data(progress=None, status_label=None):
+    if progress:
+        progress["value"] = 0
+        progress.update()
+        status_label.config(text="📂 Opening file...")
+
+    file_path = filedialog.askopenfilename(
+        title="Select Excel File",
+        filetypes=[("Excel Files", "*.xls *.xlsx *.xlsm"), ("All Files", "*.*")]
+    )
+
+    if not file_path:
+        messagebox.showwarning("No File", "No file selected.")
+        if status_label:
+            status_label.config(text="⚠️ Cancelled.")
+        return
+
+    ext = os.path.splitext(file_path)[1].lower()
+
+    if ext == ".xls":
+        if status_label:
+            status_label.config(text="🔄 Converting .xls to .xlsx...")
+        converted = convert_xls_to_xlsx(file_path)
+        if not converted:
+            return
+        file_path = converted
+        ext = ".xlsx"
+
+    try:
+        if status_label:
+            status_label.config(text="📊 Loading workbook...")
+        wb_data = load_workbook(file_path)
+    except Exception as e:
+        messagebox.showerror("Error", f"❌ Failed to open the Excel file.\n\n{e}")
+        if status_label:
+            status_label.config(text="❌ Error opening file.")
+        return
+
+    ws_data = wb_data["Sheet1"] if "Sheet1" in wb_data.sheetnames else wb_data.active
+
+    wb_main = Workbook()
+    ws_main = wb_main.active
+    ws_main.title = "Main"
+
+    for row in ws_data.iter_rows():
+        ws_main.append([cell.value for cell in row])
+    wb_data.close()
+
+    if status_label:
+        status_label.config(text="⚙️ Processing...")
+    if progress:
+        progress["value"] = 50
+        progress.update()
+
+    # Process transactions and get aggregated data
+    result = process_atm_transaction_data(ws_main, wb_main)
+    
+    if result[0] is None:
+        return
+    
+    terminal_aggregation, terminal_ids, pos_ecom_aggregate, atm_issuer_commission_aggregate = result
+
+    if progress:
+        progress["value"] = 70
+        progress.update()
+
+    if status_label:
+        status_label.config(text="💰 Pasting opening balances...")
+    
+    # Get opening balances from user via paste
+    opening_balances = get_opening_balances(terminal_ids)
+    
+    if opening_balances is None:
+        messagebox.showinfo("Canceled", "Opening balance entry was canceled.")
+        if status_label:
+            status_label.config(text="⚠️ Canceled.")
+        return
+
+    if progress:
+        progress["value"] = 90
+        progress.update()
+
+    # Add Terminal Details Sheet with aggregated data and user-provided opening balances
+    add_terminal_details_sheet(wb_main, terminal_aggregation, opening_balances)
+
+    if progress:
+        progress["value"] = 100
+        progress.update()
+
+    save_path = filedialog.asksaveasfilename(
+        defaultextension=".xlsx",
+        filetypes=[("Excel Workbook", "*.xlsx")],
+        title="Save Processed File As"
+    )
+
+    if not save_path:
+        messagebox.showinfo("Canceled", "Save operation canceled.")
+        if status_label:
+            status_label.config(text="⚠️ Save canceled.")
+        return
+
+    try:
+        wb_main.save(save_path)
+        if status_label:
+            status_label.config(text="✅ Saved successfully.")
+        messagebox.showinfo("Success", f"✅ File saved to:\n{save_path}")
+    except Exception as e:
+        messagebox.showerror("Error", f"❌ Failed to save the file.\n\n{e}")
+        if status_label:
+            status_label.config(text="❌ Error saving file.")
+
+# ===================== DAILY EXCEL FUNCTIONS =====================
+def group_and_copy_daily(ws_main, wb_main):
+    sheets = {
+        "ATM_Card_950316": [],
+        "ATM_Issuer_Withdraw": [],
+        "POS_Issuer_Sale": [],
+        "Ecom_Issuer_Sale": [],
+        "ATM_Withdraw_Fee_NonZero": [],
+        "ATM_Transfer_CardToAccount": []
     }
 
-    const ws = XLSX.utils.aoa_to_sheet(sheetData);
-    XLSX.utils.book_append_sheet(wb, ws, cat);
-  });
+    header = [cell.value for cell in ws_main[2]] if ws_main.max_row >= 2 else [cell.value for cell in ws_main[1]]
+    amount_idx = find_column_index(header, "amount")
+    fee_idx = find_column_index(header, "fee")
+    card_idx = find_column_index(header, "card")
+    refno_idx = find_column_index(header, "ref")  # Ensure your Ref No column header includes "ref"
 
-  // Summary sheet
-  const summaryData = [['Sheet Name', 'Total Count', 'Total Amount', 'Total Fee', 'Total Transaction', 'Total Use Card', 'Total 1%', 'Total 1% / 2100', 'Total / 2100']];
-  d.summaryData.forEach(s => {
-    summaryData.push([s.sheetName, s.count, s.totalAmount, s.totalFee, s.transactionAmount, s.totalUseCard, s.total1Percent, s.total1Div2100, s.totalDiv2100]);
-  });
-  const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-  XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+    if amount_idx == -1 or fee_idx == -1 or refno_idx == -1:
+        messagebox.showerror("Error",
+            "❌ Could not find 'amount', 'fee', or 'ref no' columns.\n\nDetected headers:\n" +
+            "\n".join([f"{i+1}. {repr(h)}" for i, h in enumerate(header)]))
+        return
 
-  // Terminal transaction detail sheets
-  TERMINAL_IDS.forEach(tid => {
-    const tRows = d.terminalTransactions[tid];
-    if (tRows.length === 0) return;
-    const sheetData = [d.header];
-    tRows.forEach(r => sheetData.push(r));
-    const ws = XLSX.utils.aoa_to_sheet(sheetData);
-    XLSX.utils.book_append_sheet(wb, ws, `T_${tid}`);
-  });
+    # Step 1: collect reversal Ref Nos
+    reversal_ref_nos = set()
+    for row in ws_main.iter_rows(min_row=2):
+        txt = " ".join([str(cell.value).strip() if cell.value else '' for cell in row])
+        ref_no = str(row[refno_idx].value).strip() if row[refno_idx].value else ""
+        if "reversal" in txt.lower() and ref_no:
+            reversal_ref_nos.add(ref_no)
 
-  // Download
-  const outBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  const blob = new Blob([outBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `ATM_Report_${new Date().toISOString().slice(0,10)}.xlsx`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showToast('ATM report exported successfully', 'success');
+    summary_data = []
+
+    # Step 2: process transactions
+    for sheet_name, rows in sheets.items():
+        for row in ws_main.iter_rows(min_row=2):
+            txt = " ".join([str(cell.value).strip() if cell.value else '' for cell in row])
+            ref_no = str(row[refno_idx].value).strip() if row[refno_idx].value else ""
+            # 🚫 Skip reversal transactions based on Ref No
+            if ref_no in reversal_ref_nos:
+                continue
+
+            if sheet_name == "ATM_Card_950316" and "ATM Withdraw" in txt and "950316" in txt:
+                sheets[sheet_name].append(row)
+            elif sheet_name == "ATM_Issuer_Withdraw" and "ATM Issuer Withdraw" in txt:
+                sheets[sheet_name].append(row)
+            elif sheet_name == "POS_Issuer_Sale" and "POS Issuer Sale" in txt:
+                sheets[sheet_name].append(row)
+            elif sheet_name == "Ecom_Issuer_Sale" and "Ecom Issuer Sale" in txt:
+                sheets[sheet_name].append(row)
+            elif sheet_name == "ATM_Withdraw_Fee_NonZero" and "ATM Withdraw" in txt and "950316" not in txt:
+                sheets[sheet_name].append(row)
+            elif sheet_name == "ATM_Transfer_CardToAccount" and "ATM Transfer" in txt and ("CardToAccount" in txt or "Card to Account" in txt):
+                sheets[sheet_name].append(row)
+
+    for sheet_name, rows in sheets.items():
+        ws = prepare_sheet(wb_main, sheet_name)
+        ws.append(header)
+
+        total_amount = 0.0
+        total_fee = 0.0
+        count = 0
+        unique_cards = set()
+
+        for row in rows:
+            ws.append([cell.value for cell in row])
+            count += 1
+            total_amount += to_float_safe(row[amount_idx].value)
+            total_fee += to_float_safe(row[fee_idx].value)
+
+            if card_idx != -1:
+                card_val = row[card_idx].value
+                if card_val:
+                    unique_cards.add(str(card_val).strip())
+
+        transaction_amount = total_amount - total_fee
+        total_use_card = len(unique_cards)
+
+        if sheet_name == "ATM_Issuer_Withdraw":
+            total_1_percent = (transaction_amount * 0.01) + transaction_amount
+        else:
+            total_1_percent = transaction_amount * 0.01
+
+        total_1_percent_div_2100 = total_1_percent / 2100
+        total_amount_div_2100 = total_amount / 2100
+
+        ws.append([])
+        ws.append(["Total Count", count])
+        ws.append(["Total Amount", total_amount])
+        ws.append(["Total Fee", total_fee])
+        ws.append(["Transaction Amount", transaction_amount])
+        ws.append(["Total Use Card", total_use_card])
+        ws.append(["Total 1%", total_1_percent])
+        ws.append(["Total 1% / 2100", total_1_percent_div_2100])
+        ws.append(["Total / 2100", total_amount_div_2100])
+
+        last_row = ws.max_row
+        for i in range(6):
+            ws.cell(row=last_row - i, column=2).number_format = '#,##0.00'
+
+        summary_data.append((
+            sheet_name, count, total_amount, total_fee, transaction_amount,
+            total_use_card, total_1_percent, total_1_percent_div_2100, total_amount_div_2100
+        ))
+
+    # ✅ Summary Sheet
+    ws_sum = prepare_sheet(wb_main, "Summary")
+    ws_sum.append([
+        "Sheet Name", "Total Count", "Total Amount", "Total Fee",
+        "Total Transaction", "Total Use Card", "Total 1%",
+        "Total 1% / 2100", "Total / 2100"
+    ])
+
+    for data in summary_data:
+        ws_sum.append(list(data))
+
+    # ✅ Format numbers in Summary sheet
+    for row in range(2, ws_sum.max_row + 1):
+        for col in [3, 4, 5, 7, 8, 9]:
+            ws_sum.cell(row=row, column=col).number_format = '#,##0.00'
+
+    # ✅ Highlight specific cells in green & make them bold
+    green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+    bold_font = Font(bold=True)
+    cells_to_highlight = ["E2", "E4", "E5", "E6", "E7", "G3", "H3", "I2", "I4", "I5", "I6", "I7"]
+    for cell in cells_to_highlight:
+        c = ws_sum[cell]
+        c.fill = green_fill
+        c.font = bold_font
+
+def load_daily_data(progress=None, status_label=None):
+    if progress:
+        progress["value"] = 0
+        progress.update()
+        status_label.config(text="📂 Opening file...")
+
+    file_path = filedialog.askopenfilename(
+        title="Select Excel File",
+        filetypes=[("Excel Files", "*.xls *.xlsx *.xlsm"), ("All Files", "*.*")]
+    )
+
+    if not file_path:
+        messagebox.showwarning("No File", "No file selected.")
+        if status_label:
+            status_label.config(text="⚠️ Cancelled.")
+        return
+
+    ext = os.path.splitext(file_path)[1].lower()
+
+    if ext == ".xls":
+        if status_label:
+            status_label.config(text="🔄 Converting .xls to .xlsx...")
+        converted = convert_xls_to_xlsx(file_path)
+        if not converted:
+            return
+        file_path = converted
+        ext = ".xlsx"
+
+    try:
+        if status_label:
+            status_label.config(text="📊 Loading workbook...")
+        wb_data = load_workbook(file_path)
+    except Exception as e:
+        messagebox.showerror("Error", f"❌ Failed to open the Excel file.\n\n{e}")
+        if status_label:
+            status_label.config(text="❌ Error opening file.")
+        return
+
+    ws_data = wb_data["Sheet1"] if "Sheet1" in wb_data.sheetnames else wb_data.active
+
+    wb_main = Workbook()
+    ws_main = wb_main.active
+    ws_main.title = "Main"
+
+    for row in ws_data.iter_rows():
+        ws_main.append([cell.value for cell in row])
+    wb_data.close()
+
+    if status_label:
+        status_label.config(text="⚙️ Processing...")
+    if progress:
+        progress["value"] = 50
+        progress.update()
+
+    group_and_copy_daily(ws_main, wb_main)
+
+    if progress:
+        progress["value"] = 80
+        progress.update()
+
+    save_path = filedialog.asksaveasfilename(
+        defaultextension=".xlsx",
+        filetypes=[("Excel Workbook", "*.xlsx")],
+        title="Save Processed File As"
+    )
+
+    if not save_path:
+        messagebox.showinfo("Canceled", "Save operation canceled.")
+        if status_label:
+            status_label.config(text="⚠️ Save canceled.")
+        return
+
+    try:
+        wb_main.save(save_path)
+        if status_label:
+            status_label.config(text="✅ Saved successfully.")
+        if progress:
+            progress["value"] = 100
+            progress.update()
+        messagebox.showinfo("Success", f"✅ File saved to:\n{save_path}")
+    except Exception as e:
+        messagebox.showerror("Error", f"❌ Failed to save the file.\n\n{e}")
+        if status_label:
+            status_label.config(text="❌ Error saving file.")
+
+# ===================== ICBS REPORT FUNCTIONS =====================
+def get_db_path():
+    if getattr(sys, 'frozen', False):
+        # Running as executable
+        return os.path.join(os.path.dirname(sys.executable), 'bank_transactions.db')
+    else:
+        # Running as script
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bank_transactions.db')
+
+def init_db():
+    conn = sqlite3.connect(get_db_path())
+    c = conn.cursor()
+    
+    # Create transactions table with the provided schema
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            "Sr. No." TEXT,
+            "Trans No." TEXT,
+            "Trans Ref" TEXT,
+            "Account Number" TEXT,
+            "Account Name" TEXT,
+            Description TEXT,
+            "T/T" TEXT,
+            Debit REAL,
+            Credit REAL,
+            UserId TEXT,
+            TerminalId TEXT,
+            "Sub Ref" TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Create admin_users table if it doesn't exist
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS admin_users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE,
+            password TEXT,
+            full_name TEXT,
+            role TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Check if admin user exists, if not create one
+    c.execute("SELECT * FROM admin_users WHERE username = 'admin'")
+    admin_exists = c.fetchone()
+    
+    if not admin_exists:
+        c.execute("INSERT INTO admin_users (username, password, full_name, role) VALUES (?, ?, ?, ?)", 
+                 ('admin', 'admin123', 'System Administrator', 'admin'))
+    
+    conn.commit()
+    conn.close()
+
+def add_deleted_transactions_column():
+    """Add is_deleted column to transactions table if it doesn't exist"""
+    conn = sqlite3.connect(get_db_path())
+    c = conn.cursor()
+    
+    # Check if is_deleted column exists
+    c.execute("PRAGMA table_info(transactions)")
+    columns = [column[1] for column in c.fetchall()]
+    
+    if 'is_deleted' not in columns:
+        # Add the is_deleted column
+        c.execute("ALTER TABLE transactions ADD COLUMN is_deleted INTEGER DEFAULT 0")
+        conn.commit()
+    
+    conn.close()
+
+def create_icbs_report():
+    """Create ICBS report using Flask web application"""
+    try:
+        from flask import Flask, render_template_string, request, redirect, url_for, jsonify, session, send_file, send_from_directory
+        from datetime import datetime, date, timedelta
+        import socket
+        import threading
+        import webbrowser
+        from pystray import Icon, Menu, MenuItem
+        from PIL import Image
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+        from openpyxl.utils.dataframe import dataframe_to_rows
+        
+        # Initialize database
+        init_db()
+        add_deleted_transactions_column()
+        
+        # Create static directory if it doesn't exist
+        static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+        if not os.path.exists(static_dir):
+            os.makedirs(static_dir)
+        
+        # Create a default logo if it doesn't exist
+        default_logo_path = os.path.join(static_dir, 'bank_logo.png')
+        if not os.path.exists(default_logo_path):
+            try:
+                from PIL import Image, ImageDraw, ImageFont
+                img = Image.new('RGB', (200, 80), color=(255, 255, 255))
+                d = ImageDraw.Draw(img)
+                try:
+                    font = ImageFont.truetype("arial.ttf", 24)
+                except:
+                    font = ImageFont.load_default()
+                d.text((10, 30), "BANK SYSTEM", fill=(0, 0, 128), font=font)
+                img.save(default_logo_path)
+            except ImportError:
+                # Create a simple SVG as fallback
+                with open(default_logo_path, 'w') as f:
+                    f.write("""<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80">
+                        <rect width="200" height="80" fill="white"/>
+                        <text x="100" y="45" font-family="Arial" font-size="24" fill="#000080" text-anchor="middle">BANK SYSTEM</text>
+                    </svg>""")
+        
+        # Flask app initialization
+        app = Flask(__name__, static_folder=static_dir)
+        app.secret_key = 'bank_transaction_tracking_secret_key'
+        
+        # HTML templates
+        LOGIN_HTML = '''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>ICBS Transaction Report - Login</title>
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    margin: 0; 
+                    padding: 0;
+                    background: linear-gradient(135deg, #003366, #0066cc, #3399ff);
+                    height: 100vh;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                }
+                .login-container {
+                    background: white;
+                    padding: 40px;
+                    border-radius: 10px;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                    width: 400px;
+                    text-align: center;
+                }
+                .logo-container {
+                    margin-bottom: 30px;
+                }
+                .logo {
+                    max-width: 200px;
+                    max-height: 80px;
+                    border-radius: 5px;
+                    display: block;
+                    margin: 0 auto;
+                }
+                .system-title {
+                    font-size: 28px;
+                    font-weight: bold;
+                    color: #003366;
+                    margin-bottom: 30px;
+                }
+                .form-group {
+                    margin-bottom: 20px;
+                    text-align: left;
+                }
+                label { 
+                    display: block; 
+                    margin-bottom: 8px;
+                    font-weight: bold;
+                    color: #003366;
+                }
+                input { 
+                    width: 100%; 
+                    padding: 12px; 
+                    box-sizing: border-box;
+                    border: 1px solid #ddd;
+                    border-radius: 5px;
+                    font-size: 16px;
+                }
+                input:focus {
+                    border-color: #0066cc;
+                    outline: none;
+                    box-shadow: 0 0 5px rgba(0, 102, 204, 0.3);
+                }
+                button { 
+                    width: 100%; 
+                    padding: 14px; 
+                    background: #0066cc; 
+                    color: white; 
+                    border: none; 
+                    cursor: pointer;
+                    border-radius: 5px;
+                    font-size: 16px;
+                    font-weight: bold;
+                    transition: background 0.3s;
+                }
+                button:hover {
+                    background: #0052a3;
+                }
+                .error { 
+                    color: #cc0000; 
+                    margin-bottom: 15px;
+                    padding: 10px;
+                    background: #ffdddd;
+                    border: 1px solid #cc0000;
+                    border-radius: 5px;
+                    text-align: center;
+                }
+                .login-info {
+                    margin-top: 20px;
+                    font-size: 14px;
+                    color: #666;
+                }
+                .login-info strong {
+                    color: #003366;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="login-container">
+                <div class="logo-container">
+                    <img src="/static/bank_logo.png" alt="Bank Logo" class="logo">
+                </div>
+                <div class="system-title">ICBS Transaction Report</div>
+                
+                {% if error %}
+                    <div class="error">{{ error }}</div>
+                {% endif %}
+                
+                <form action="/login" method="POST">
+                    <div class="form-group">
+                        <label for="username">Username:</label>
+                        <input type="text" id="username" name="username" required autofocus>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">Password:</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                    
+                    <button type="submit">Login</button>
+                </form>
+                
+                <div class="login-info">
+                    <strong>Create by @ Channel Banking Department</strong><br>
+                </div>
+            </div>
+        </body>
+        </html>
+        '''
+        
+        DASHBOARD_HTML = '''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>ICBS Dashboard (Transaction)</title>
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    margin: 0; 
+                    padding: 20px;
+                    background-color: #f5f7fa;
+                    color: #333;
+                }
+                .container { 
+                    max-width: 1400px; 
+                    margin: 0 auto; 
+                    background: white;
+                    padding: 30px;
+                    border-radius: 10px;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                }
+                h1 {
+                    color: #2c3e50;
+                    text-align: center;
+                    margin-bottom: 30px;
+                    border-bottom: 2px solid #0066cc;
+                    padding-bottom: 10px;
+                }
+                .dashboard-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                    gap: 20px;
+                    margin-bottom: 30px;
+                }
+                .stat-card {
+                    background: white;
+                    padding: 25px;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    text-align: center;
+                    transition: transform 0.3s;
+                }
+                .stat-card:hover {
+                    transform: translateY(-5px);
+                }
+                .stat-value {
+                    font-size: 36px;
+                    font-weight: bold;
+                    margin-bottom: 10px;
+                }
+                .stat-label {
+                    color: #7f8c8d;
+                    font-size: 14px;
+                }
+                .total-transactions { color: #0066cc; }
+                .monthly-transactions { color: #f39c12; }
+                .total-debit { color: #e74c3c; }
+                .total-credit { color: #27ae60; }
+                .quick-actions {
+                    display: flex;
+                    justify-content: center;
+                    gap: 20px;
+                    margin-bottom: 40px;
+                    flex-wrap: wrap;
+                }
+                .action-btn {
+                    padding: 15px 30px;
+                    background: #0066cc;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 8px;
+                    font-weight: bold;
+                    transition: all 0.3s;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }
+                .action-btn:hover {
+                    transform: translateY(-3px);
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                }
+                .add-btn { background: #2ecc71; }
+                .add-btn:hover { background: #27ae60; }
+                .view-btn { background: #9b59b6; }
+                .view-btn:hover { background: #8e44ad; }
+                .excel-btn { background: #27ae60; }
+                .excel-btn:hover { background: #229954; }
+                .import-btn { background: #16a085; }
+                .import-btn:hover { background: #138871; }
+                .admin-btn { background: #8e44ad; }
+                .admin-btn:hover { background: #7d3c98; }
+                .group-btn { background: #e67e22; }
+                .group-btn:hover { background: #d35400; }
+                .delete-btn { background: #e74c3c; }
+                .delete-btn:hover { background: #c0392b; }
+                .recent-transactions {
+                    margin-top: 30px;
+                }
+                .recent-transactions h2 {
+                    color: #2c3e50;
+                    margin-bottom: 20px;
+                }
+                .transaction-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 10px;
+                }
+                .transaction-table th, .transaction-table td {
+                    padding: 12px;
+                    text-align: left;
+                    border-bottom: 1px solid #ddd;
+                }
+                .transaction-table th {
+                    background-color: #f8f9fa;
+                    font-weight: bold;
+                }
+                .transaction-table tr:hover {
+                    background-color: #f5f5f5;
+                }
+                .view-all {
+                    text-align: right;
+                    margin-top: 15px;
+                }
+                .view-all a {
+                    color: #0066cc;
+                    text-decoration: none;
+                    font-weight: bold;
+                }
+                .view-all a:hover {
+                    text-decoration: underline;
+                }
+                .icon {
+                    font-size: 20px;
+                }
+                .header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 20px;
+                }
+                .user-info {
+                    display: flex;
+                    align-items: center;
+                    gap: 15px;
+                }
+                .user-avatar {
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 50%;
+                    background-color: #0066cc;
+                    color: white;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    font-weight: bold;
+                }
+                .user-details {
+                    text-align: right;
+                }
+                .user-name {
+                    font-weight: bold;
+                    color: #2c3e50;
+                }
+                .user-role {
+                    font-size: 12px;
+                    color: #7f8c8d;
+                }
+                .logout-btn {
+                    padding: 8px 15px;
+                    background: #e74c3c;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 5px;
+                    font-size: 14px;
+                    transition: background 0.3s;
+                }
+                .logout-btn:hover {
+                    background: #c0392b;
+                }
+                .warning {
+                    background-color: #fff3cd;
+                    border: 1px solid #ffeeba;
+                    color: #856404;
+                    padding: 15px;
+                    border-radius: 5px;
+                    margin-bottom: 20px;
+                    text-align: center;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>ICBS Transaction Dashboard</h1>
+                    <div class="user-info">
+                        <div class="user-details">
+                            <div class="user-name">{{ session.full_name }}</div>
+                            <div class="user-role">{{ session.role.title() }}</div>
+                        </div>
+                        <div class="user-avatar">{{ session.full_name[0].upper() }}</div>
+                        <a href="/logout" class="logout-btn">Logout</a>
+                    </div>
+                </div>
+                
+                {% if not EXCEL_AVAILABLE %}
+                <div class="warning">
+                    <strong>Warning:</strong> Excel export functionality is disabled because the openpyxl library is not installed. 
+                    To enable Excel export, install openpyxl with: pip install openpyxl
+                </div>
+                {% endif %}
+                
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <div class="stat-value total-transactions">{{ total_transactions }}</div>
+                        <div class="stat-label">Total Transactions</div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-value total-debit">{{ total_debit }}</div>
+                        <div class="stat-label">Total Debit Amount</div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-value total-credit">{{ total_credit }}</div>
+                        <div class="stat-label">Total Credit Amount</div>
+                    </div>
+                </div>
+                
+                <div class="quick-actions">
+                    <a href="/data" class="action-btn view-btn">
+                        <span class="icon">📋</span> View All Transactions
+                    </a>
+                    <a href="/group_transactions" class="action-btn group-btn">
+                        <span class="icon">📊</span> Group Transactions
+                    </a>
+                    {% if EXCEL_AVAILABLE %}
+                    <a href="/import" class="action-btn import-btn">
+                        <span class="icon">📥</span> Import Data
+                    </a>
+                    <a href="/export_all_excel" class="action-btn excel-btn">
+                        <span class="icon">📊</span> Export All Data
+                    </a>
+                    {% endif %}
+                    {% if session.role == 'admin' %}
+                    <a href="/users" class="action-btn admin-btn">
+                        <span class="icon">👥</span> User Management
+                    </a>
+                    {% endif %}
+                </div>
+                
+                <div class="recent-transactions">
+                    <h2>Recent Transactions</h2>
+                    {% if recent_transactions %}
+                        <table class="transaction-table">
+                            <thead>
+                                <tr>
+                                    <th>Sr. No.</th>
+                                    <th>Trans No.</th>
+                                    <th>Account Number</th>
+                                    <th>Account Name</th>
+                                    <th>Debit</th>
+                                    <th>Credit</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for transaction in recent_transactions %}
+                                <tr>
+                                    <td>{{ transaction["Sr. No."] }}</td>
+                                    <td>{{ transaction["Trans No."] }}</td>
+                                    <td>{{ transaction["Account Number"] }}</td>
+                                    <td>{{ transaction["Account Name"] }}</td>
+                                    <td>{{ transaction.Debit }}</td>
+                                    <td>{{ transaction.Credit }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <div class="view-all">
+                            <a href="/data">View All Transactions →</a>
+                        </div>
+                    {% else %}
+                        <p>No transactions recorded yet. <a href="/add">Add your first transaction</a>.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </body>
+        </html>
+        '''
+        
+        # Routes
+        @app.route('/')
+        def dashboard():
+            conn = sqlite3.connect(get_db_path())
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            
+            # Get total transactions
+            c.execute("SELECT COUNT(*) as count FROM transactions WHERE is_deleted = 0")
+            total_transactions = c.fetchone()['count']
+            
+            # Get total debit and credit amounts
+            c.execute("SELECT SUM(Debit) as total_debit, SUM(Credit) as total_credit FROM transactions WHERE is_deleted = 0")
+            amounts = c.fetchone()
+            total_debit = amounts['total_debit'] or 0
+            total_credit = amounts['total_credit'] or 0
+            
+            # Get recent transactions
+            c.execute("SELECT * FROM transactions WHERE is_deleted = 0 ORDER BY created_at DESC LIMIT 5")
+            recent_transactions = [dict(txn) for txn in c.fetchall()]
+            
+            conn.close()
+            
+            return render_template_string(DASHBOARD_HTML, 
+                                        total_transactions=total_transactions,
+                                        total_debit=total_debit,
+                                        total_credit=total_credit,
+                                        recent_transactions=recent_transactions,
+                                        EXCEL_AVAILABLE=True,
+                                        session={'full_name': 'Admin User', 'role': 'admin'})
+        
+        @app.route('/login', methods=['GET', 'POST'])
+        def login():
+            if request.method == 'POST':
+                username = request.form['username']
+                password = request.form['password']
+                
+                conn = sqlite3.connect(get_db_path())
+                conn.row_factory = sqlite3.Row
+                c = conn.cursor()
+                
+                c.execute("SELECT * FROM admin_users WHERE username = ?", (username,))
+                user = c.fetchone()
+                
+                conn.close()
+                
+                if user and user['password'] == password:
+                    session['logged_in'] = True
+                    session['user_id'] = user['id']
+                    session['username'] = user['username']
+                    session['full_name'] = user['full_name']
+                    session['role'] = user['role']
+                    return redirect(url_for('dashboard'))
+                else:
+                    return render_template_string(LOGIN_HTML, error="Invalid username or password")
+            
+            return render_template_string(LOGIN_HTML)
+        
+        @app.route('/logout')
+        def logout():
+            session.clear()
+            return redirect(url_for('login'))
+        
+        # Start the Flask app in a separate thread
+        def run_flask():
+            app.run(host='localhost', port=5001, debug=False, use_reloader=False)
+        
+        flask_thread = threading.Thread(target=run_flask)
+        flask_thread.daemon = True
+        flask_thread.start()
+        
+        # Open the browser after a short delay
+        def open_browser():
+            import time
+            time.sleep(1.5)
+            webbrowser.open('http://localhost:5001')
+        
+        browser_thread = threading.Thread(target=open_browser)
+        browser_thread.daemon = True
+        browser_thread.start()
+        
+        messagebox.showinfo("ICBS Report", "ICBS Report server started.\nOpening browser in a moment...")
+        
+    except ImportError as e:
+        messagebox.showerror("Import Error", f"Failed to import required modules: {e}\nPlease install Flask and other required packages.")
+
+# ===================== MPU SETTLEMENT FUNCTIONS =====================
+def convert_rate(s):
+    """Convert rate string to decimal percentage value"""
+    s = str(s).strip()
+    if s.endswith('%'):
+        # Remove the % and convert to float, then divide by 100 to get decimal
+        return float(s[:-1]) / 100.0
+    else:
+        # Convert to float and then divide by 10000 to convert basis points to decimal
+        return float(s) / 10000.0
+
+# Updated merchant data with raw strings
+merchant_data = {
+    "3333": {"Type": "ECOMMERCE", "Rate": "200", "Issuer": "75", "Acquirer": "50"},
+    "3339": {"Type": "ECOMMERCE", "Rate": "500", "Issuer": "150", "Acquirer": "150"},
+    "3335": {"Type": "ECOMMERCE", "Rate": "5000", "Issuer": "1250", "Acquirer": "1250"},
+    "3345": {"Type": "ECOMMERCE", "Rate": "150", "Issuer": "50", "Acquirer": "50"},
+    "3347": {"Type": "ECOMMERCE", "Rate": "1000", "Issuer": "300", "Acquirer": "300"},
+    "3341": {"Type": "ECOMMERCE", "Rate": "500", "Issuer": "100", "Acquirer": "200"},
+    "3344": {"Type": "ECOMMERCE", "Rate": "500", "Issuer": "100", "Acquirer": "100"},
+    "3346": {"Type": "ECOMMERCE", "Rate": "500", "Issuer": "150", "Acquirer": "150"},
+    "2201": {"Type": "ECOMMERCE", "Rate": "200", "Issuer": "75", "Acquirer": "50"},
+    "2204": {"Type": "ECOMMERCE", "Rate": "300", "Issuer": "75", "Acquirer": "75"},
+    "3334": {"Type": "ECOMMERCE", "Rate": "0.5%", "Issuer": "25%", "Acquirer": "20%"},
+    "3338": {"Type": "ECOMMERCE", "Rate": "0.4%", "Issuer": "25%", "Acquirer": "75%"},
+    "3337": {"Type": "ECOMMERCE", "Rate": "1.0%", "Issuer": "30%", "Acquirer": "30%"},
+    "3336": {"Type": "ECOMMERCE", "Rate": "0%", "Issuer": "0%", "Acquirer": "0%"},
+    "3342": {"Type": "ECOMMERCE", "Rate": "0.5%", "Issuer": "25%", "Acquirer": "25%"},
+    "3349": {"Type": "ECOMMERCE", "Rate": "500.00", "Issuer": "125", "Acquirer": "125"},
+    "3350": {"Type": "ECOMMERCE", "Rate": "500.00", "Issuer": "125", "Acquirer": "125"},
+    "3351": {"Type": "ECOMMERCE", "Rate": "500.00", "Issuer": "125", "Acquirer": "125"},
+    "3352": {"Type": "ECOMMERCE", "Rate": "0.6%", "Issuer": "25%", "Acquirer": "25%"},
+    "3353": {"Type": "ECOMMERCE", "Rate": "500.00", "Issuer": "125", "Acquirer": "125"},
+    "3354": {"Type": "ECOMMERCE", "Rate": "500.00", "Issuer": "125", "Acquirer": "125"},
+    "3355": {"Type": "ECOMMERCE", "Rate": "500.00", "Issuer": "125", "Acquirer": "125"},
+    "3356": {"Type": "ECOMMERCE", "Rate": "500.00", "Issuer": "125", "Acquirer": "125"},
+    "2222": {"Type": "POS", "Rate": "0.30%", "Issuer": "10%", "Acquirer": "50%"},
+    "4444": {"Type": "POS", "Rate": "0.85%", "Issuer": "20%", "Acquirer": "60%"},
+    "5812": {"Type": "POS", "Rate": "0.85%", "Issuer": "20%", "Acquirer": "60%"},
+    "4511": {"Type": "POS", "Rate": "0.85%", "Issuer": "20%", "Acquirer": "60%"},
+    "5813": {"Type": "POS", "Rate": "0.85%", "Issuer": "20%", "Acquirer": "60%"},
+    "5499": {"Type": "POS", "Rate": "0.85%", "Issuer": "20%", "Acquirer": "60%"},
+    "7011": {"Type": "POS", "Rate": "0.85%", "Issuer": "20%", "Acquirer": "60%"},
+    "6513": {"Type": "POS", "Rate": "0.85%", "Issuer": "12%", "Acquirer": "60%"},
+    "5555": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5912": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "4812": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "4814": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5045": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7379": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "4722": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7991": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7992": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "4789": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "4111": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "4121": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7298": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7297": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7230": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5193": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "8299": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "8211": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "8241": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "8244": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "8249": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "8351": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "8220": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5310": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5309": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5311": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5333": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5441": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5921": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5943": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5944": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5946": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5949": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5977": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5995": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5999": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5111": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5462": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "8062": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "742": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5047": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "8099": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5137": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5641": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5691": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5699": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5631": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "4900": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5065": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5732": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5712": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5721": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5719": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5722": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7210": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7221": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5511": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5571": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5940": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5994": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7216": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "6530": {"Type": "POS", "Rate": "0.60%", "Issuer": "10%", "Acquirer": "50%"},
+    "5968": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "1520": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "1771": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "3077": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "3082": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "4214": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "4225": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "4411": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "4468": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "4899": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5039": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5172": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5231": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5300": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5399": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5532": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5533": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5611": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5621": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5651": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5655": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5661": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5697": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5714": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5733": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5942": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5945": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5947": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5948": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5962": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5965": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5970": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5971": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5973": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5993": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "6300": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7032": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7296": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7392": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7512": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7641": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7929": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7941": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7993": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7997": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "8021": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "8043": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7933": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5271": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "7631": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5085": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "5046": {"Type": "POS", "Rate": "0.60%", "Issuer": "20%", "Acquirer": "50%"},
+    "6666": {"Type": "POS", "Rate": "0.40%", "Issuer": "20%", "Acquirer": "40%"},
+    "8398": {"Type": "POS", "Rate": "0.40%", "Issuer": "20%", "Acquirer": "40%"},
+    "8651": {"Type": "POS", "Rate": "0.40%", "Issuer": "20%", "Acquirer": "40%"},
+    "9211": {"Type": "POS", "Rate": "0.40%", "Issuer": "10%", "Acquirer": "50%"},
+    "9222": {"Type": "POS", "Rate": "0.40%", "Issuer": "10%", "Acquirer": "50%"},
+    "9311": {"Type": "POS", "Rate": "0.40%", "Issuer": "20%", "Acquirer": "40%"},
+    "9399": {"Type": "POS", "Rate": "0.40%", "Issuer": "20%", "Acquirer": "40%"},
+    "6841": {"Type": "POS", "Rate": "0.40%", "Issuer": "20%", "Acquirer": "40%"},
+    "8888": {"Type": "POS", "Rate": "0.30%", "Issuer": "20%", "Acquirer": "50%"},
+    "8889": {"Type": "POS", "Rate": "0.30%", "Issuer": "20%", "Acquirer": "50%"},
+    "4784": {"Type": "POS", "Rate": "0.30%", "Issuer": "20%", "Acquirer": "50%"},
+    "4112": {"Type": "POS", "Rate": "0.30%", "Issuer": "20%", "Acquirer": "50%"},
+    "4131": {"Type": "POS", "Rate": "0.30%", "Issuer": "20%", "Acquirer": "50%"},
+    "7523": {"Type": "POS", "Rate": "0.30%", "Issuer": "20%", "Acquirer": "50%"},
+    "5814": {"Type": "POS", "Rate": "0.30%", "Issuer": "20%", "Acquirer": "50%"},
+    "5541": {"Type": "POS", "Rate": "0.30%", "Issuer": "20%", "Acquirer": "50%"},
+    "5542": {"Type": "POS", "Rate": "0.30%", "Issuer": "20%", "Acquirer": "50%"},
+    "5983": {"Type": "POS", "Rate": "0.30%", "Issuer": "20%", "Acquirer": "50%"},
+    "7777": {"Type": "POS", "Rate": "0.00%", "Issuer": "0%", "Acquirer": "0%"},
+    "4445": {"Type": "POS", "Rate": "1.00%", "Issuer": "20%", "Acquirer": "50%"},
+    "5094": {"Type": "POS", "Rate": "1.00%", "Issuer": "20%", "Acquirer": "50%"},
+    "5556": {"Type": "POS", "Rate": "0.50%", "Issuer": "20%", "Acquirer": "50%"},
+    "5411": {"Type": "POS", "Rate": "0.50%", "Issuer": "20%", "Acquirer": "50%"},
+    "8641": {"Type": "POS", "Rate": "0.40%", "Issuer": "10%", "Acquirer": "50%"}
 }
 
-function exportDailyReport() {
-  if (!dailyProcessedData) return;
-  const d = dailyProcessedData;
-
-  const wb = XLSX.utils.book_new();
-
-  TRANSACTION_CATEGORIES.forEach(cat => {
-    const rows = d.sheets[cat] || [];
-    const sheetData = [d.header];
-    rows.forEach(r => sheetData.push(r.data));
-
-    const summary = d.summaryData.find(s => s.sheetName === cat);
-    if (summary) {
-      sheetData.push([]);
-      sheetData.push(['Total Count', summary.count]);
-      sheetData.push(['Total Amount', summary.totalAmount]);
-      sheetData.push(['Total Fee', summary.totalFee]);
-      sheetData.push(['Transaction Amount', summary.transactionAmount]);
-      sheetData.push(['Total Use Card', summary.totalUseCard]);
-      sheetData.push(['Total 1%', summary.total1Percent]);
-      sheetData.append(['Total 1% / 2100', summary.total1Div2100]);
-      sheetData.push(['Total / 2100', summary.totalDiv2100]);
+def group_and_copy_mpu(ws_main, wb_main, progress, status_label):
+    sheets = {
+        "ATM_Card_950316": [],
+        "ATM_Issuer_Withdraw": [],
+        "POS_Issuer_Sale": [],
+        "Ecom_Issuer_Sale": [],
+        "ATM_Withdraw_Fee_NonZero": [],
+        "ATM_Transfer_CardToAccount": []
     }
 
-    const ws = XLSX.utils.aoa_to_sheet(sheetData);
-    XLSX.utils.book_append_sheet(wb, ws, cat);
-  });
+    header = [cell.value for cell in ws_main[2]] if ws_main.max_row >= 2 else [cell.value for cell in ws_main[1]]
 
-  // Summary sheet
-  const summaryData = [['Sheet Name', 'Total Count', 'Total Amount', 'Total Fee', 'Total Transaction', 'Total Use Card', 'Total 1%', 'Total 1% / 2100', 'Total / 2100']];
-  d.summaryData.forEach(s => {
-    summaryData.push([s.sheetName, s.count, s.totalAmount, s.totalFee, s.transactionAmount, s.totalUseCard, s.total1Percent, s.total1Div2100, s.totalDiv2100]);
-  });
-  const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-  XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+    amount_idx = find_column_index(header, "amount")
+    fee_idx = find_column_index(header, "fee")
+    card_idx = find_column_index(header, "card")
+    merchant_idx = find_column_index(header, "merchant")
+    if merchant_idx == -1:
+        merchant_idx = find_column_index(header, "mcc")
+    refno_idx = find_column_index(header, "ref")
 
-  const outBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  const blob = new Blob([outBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `Daily_Report_${new Date().toISOString().slice(0,10)}.xlsx`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showToast('Daily report exported successfully', 'success');
-}
+    if amount_idx == -1 or fee_idx == -1 or refno_idx == -1:
+        messagebox.showerror("Error",
+            "❌ Could not find 'amount', 'fee', or 'ref no' columns.\n\nDetected headers:\n" +
+            "\n".join([f"{i+1}. {repr(h)}" for i, h in enumerate(header)]))
+        return
 
-function exportIcbsReport() {
-  if (!icbsProcessedData) return;
-  const d = icbsProcessedData;
+    reversal_ref_nos = set()
+    all_rows = []
 
-  const wb = XLSX.utils.book_new();
-  const sheetData = [d.header];
-  d.rows.forEach(r => sheetData.push(r));
-  const ws = XLSX.utils.aoa_to_sheet(sheetData);
-  XLSX.utils.book_append_sheet(wb, ws, 'ICBS Data');
+    for row in ws_main.iter_rows(min_row=2):
+        values = [cell.value for cell in row]
+        text = " ".join([str(v) if v else '' for v in values])
+        ref_no = str(values[refno_idx]).strip() if values[refno_idx] else ""
 
-  const outBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  const blob = new Blob([outBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `ICBS_Report_${new Date().toISOString().slice(0,10)}.xlsx`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showToast('ICBS report exported successfully', 'success');
-}
+        all_rows.append((text, values, row))
 
-// ===================== KEYBOARD SHORTCUTS =====================
-document.addEventListener('keydown', (e) => {
-  // Escape to close modal
-  if (e.key === 'Escape') {
-    const modal = document.getElementById('openingBalanceModal');
-    if (modal.classList.contains('visible')) {
-      closeOpeningBalanceModal();
+        if "reversal" in text.lower() and ref_no:
+            reversal_ref_nos.add(ref_no)
+
+    summary_data = []
+    total_sheets = len(sheets)
+    current_sheet = 0
+
+    # Classify and skip reversal
+    for text, values, row in all_rows:
+        ref_no = str(values[refno_idx]).strip() if values[refno_idx] else ""
+        if ref_no in reversal_ref_nos:
+            continue
+        if "ATM Withdraw" in text and "950316" in text:
+            sheets["ATM_Card_950316"].append(row)
+        elif "ATM Issuer Withdraw" in text:
+            sheets["ATM_Issuer_Withdraw"].append(row)
+        elif "POS Issuer Sale" in text:
+            sheets["POS_Issuer_Sale"].append(row)
+        elif "Ecom Issuer Sale" in text:
+            sheets["Ecom_Issuer_Sale"].append(row)
+        elif "ATM Withdraw" in text and "950316" not in text:
+            sheets["ATM_Withdraw_Fee_NonZero"].append(row)
+        elif "ATM Transfer" in text and ("CardToAccount" in text or "Card to Account" in text):
+            sheets["ATM_Transfer_CardToAccount"].append(row)
+
+    for sheet_name, rows in sheets.items():
+        ws = prepare_sheet(wb_main, sheet_name)
+        ws.append(header)
+
+        merchant_aggregates = {}
+
+        for row in rows:
+            ws.append([cell.value for cell in row])
+            amount = to_float_safe(row[amount_idx].value)
+            fee = to_float_safe(row[fee_idx].value)
+            card_val = row[card_idx].value if card_idx != -1 else None
+            merchant_code = str(row[merchant_idx].value).strip() if merchant_idx != -1 and row[merchant_idx].value else "UNKNOWN"
+
+            if merchant_code not in merchant_aggregates:
+                merchant_aggregates[merchant_code] = {
+                    "total_amount": 0.0,
+                    "total_fee": 0.0,
+                    "count": 0,
+                    "unique_cards": set()
+                }
+
+            merchant_aggregates[merchant_code]["total_amount"] += amount
+            merchant_aggregates[merchant_code]["total_fee"] += fee
+            merchant_aggregates[merchant_code]["count"] += 1
+            if card_val:
+                merchant_aggregates[merchant_code]["unique_cards"].add(str(card_val).strip())
+
+        ws.append([])
+        ws.append([
+            "Merchant Code", "Count", "Total Amount", "Total Fee", "Transaction Amount",
+            "Total Use Card", "Rate", "Issuer", "Total Settlement Fee", "MPU Settlement Amount"
+        ])
+
+        for merchant_code, agg in merchant_aggregates.items():
+            merchant_info = merchant_data.get(merchant_code, {})
+            rate_str = merchant_info.get("Rate", "0")
+            issuer_str = merchant_info.get("Issuer", "0")
+            
+            total_amount = agg["total_amount"]
+            total_fee = agg["total_fee"]
+            transaction_amount = total_amount - total_fee
+            total_use_card = len(agg["unique_cards"])
+            
+            # Convert rate to decimal value
+            if rate_str.endswith('%'):
+                # For percentage rates, convert to decimal (e.g., "0.5%" -> 0.005)
+                rate_value = float(rate_str[:-1]) / 100
+            else:
+                # For non-percentage rates, treat as basis points (e.g., "200" -> 0.02)
+                rate_value = float(rate_str) 
+            
+            # Convert issuer to decimal value
+            if issuer_str.endswith('%'):
+                # For percentage issuer rates, convert to decimal (e.g., "25%" -> 0.25)
+                issuer_value = float(issuer_str[:-1]) / 100
+            else:
+                # For non-percentage issuer rates, treat as basis points (e.g., "75" -> 0.0075)
+                issuer_value = float(issuer_str) 
+            
+            # Calculate total_settlement_fee based on rate type
+            if rate_str.endswith('%'):
+                # For percentage rates, use the percentage formula
+                total_settlement_fee = total_amount * rate_value * issuer_value
+            else:
+                # For non-percentage rates, use the direct amount formula
+                total_settlement_fee = issuer_value
+            
+            mpu_settlement_amount = total_amount - total_settlement_fee
+
+            ws.append([
+                merchant_code, agg["count"], total_amount, total_fee, transaction_amount,
+                total_use_card, rate_str, issuer_str, total_settlement_fee, mpu_settlement_amount
+            ])
+            
+            last_row = ws.max_row
+            for col in [3, 4, 5, 9, 10]:
+                ws.cell(row=last_row, column=col).number_format = '#,##0.00'
+
+            combined_fee_settlement = total_fee + total_settlement_fee
+            summary_data.append((
+                f"{sheet_name} - {merchant_code}",
+                agg["count"], total_amount, transaction_amount,
+                total_use_card, rate_str, issuer_str, combined_fee_settlement, mpu_settlement_amount
+            ))
+
+        current_sheet += 1  # FIXED: Corrected indentation level
+        if progress:
+            progress['value'] = int((current_sheet / total_sheets) * 100)
+            status_label.config(text=f"Processing: {sheet_name} ({current_sheet}/{total_sheets})")
+            progress.update()
+            root.update_idletasks()
+
+    # Write Summary
+    ws_sum = prepare_sheet(wb_main, "Summary")
+    ws_sum.append([
+        "Sheet Name - Merchant", "Count", "Total Amount", "Transaction Amount",
+        "Total Use Card", "Rate", "Issuer", "Total Fee & Settlement", "MPU Settlement Amount"
+    ])
+    for data in summary_data:
+        ws_sum.append(list(data))
+    for row in range(2, ws_sum.max_row + 1):
+        for col in [3, 4, 8, 9]:
+            ws_sum.cell(row=row, column=col).number_format = '#,##0.00'
+
+    # Highlight header
+    green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+    bold_font = Font(bold=True)
+    ws_sum["H2"].fill = green_fill
+    ws_sum["H2"].font = bold_font
+
+def load_mpu_data(progress=None, status_label=None):
+    status_label.config(text="Please select an Excel file...")
+    file_path = filedialog.askopenfilename(
+        title="Select Excel File",
+        filetypes=[("Excel Files", "*.xls *.xlsx *.xlsm"), ("All Files", "*.*")]
+    )
+    if not file_path:
+        status_label.config(text="No file selected.")
+        return
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext == ".xls":
+        status_label.config(text="Converting .xls to .xlsx...")
+        converted = convert_xls_to_xlsx(file_path)
+        if not converted:
+            status_label.config(text="Conversion failed.")
+            return
+        file_path = converted
+
+    try:
+        wb_data = load_workbook(file_path)
+    except Exception as e:
+        messagebox.showerror("Error", f"❌ Failed to open the Excel file.\n\n{e}")
+        status_label.config(text="Failed to open file.")
+        return
+
+    ws_data = wb_data["Sheet1"] if "Sheet1" in wb_data.sheetnames else wb_data.active
+    wb_main = Workbook()
+    ws_main = wb_main.active
+    ws_main.title = "Main"
+
+    for row in ws_data.iter_rows():
+        ws_main.append([cell.value for cell in row])
+
+    wb_data.close()
+    status_label.config(text="Processing data...")
+    progress['value'] = 10
+    progress.update()
+
+    group_and_copy_mpu(ws_main, wb_main, progress, status_label)
+
+    status_label.config(text="Processing complete! Please select save location.")
+    progress['value'] = 99
+    progress.update()
+
+    save_path = filedialog.asksaveasfilename(
+        defaultextension=".xlsx",
+        filetypes=[("Excel Workbook", "*.xlsx")],
+        title="Save Processed File As"
+    )
+    if not save_path:
+        status_label.config(text="Save operation canceled.")
+        messagebox.showinfo("Canceled", "Save operation canceled.")
+        return
+    try:
+        wb_main.save(save_path)
+        status_label.config(text=f"✅ File saved to:\n{save_path}")
+        messagebox.showinfo("Success", f"✅ File saved to:\n{save_path}")
+    except Exception as e:
+        status_label.config(text="Failed to save file.")
+        messagebox.showerror("Error", f"❌ Failed to save the file.\n\n{e}")
+
+# ===================== TRANSACTION MONITORING FUNCTIONS =====================
+def group_and_copy_monitoring(ws_main, wb_main):
+    sheets = {
+        "ATM_Card_950316": [],
+        "ATM_Issuer_Withdraw": [],
+        "POS_Issuer_Sale": [],
+        "Ecom_Issuer_Sale": [],
+        "ATM_Withdraw_Fee_NonZero": [],
+        "ATM_Transfer_CardToAccount": []
     }
-  }
-});
 
-// Close modal on overlay click
-document.getElementById('openingBalanceModal').addEventListener('click', (e) => {
-  if (e.target === e.currentTarget) closeOpeningBalanceModal();
-});
-</script>
-</body>
-</html>
+    header = [cell.value for cell in ws_main[2]] if ws_main.max_row >= 2 else [cell.value for cell in ws_main[1]]
+    amount_idx = find_column_index(header, "amount")
+    fee_idx = find_column_index(header, "fee")
+    card_idx = find_column_index(header, "card")
+    refno_idx = find_column_index(header, "ref")
+
+    if amount_idx == -1 or fee_idx == -1 or refno_idx == -1:
+        messagebox.showerror("Error", "❌ Could not find 'amount', 'fee', or 'ref no' columns.\n\nDetected headers:\n" +
+                             "\n".join([f"{i+1}. {repr(h)}" for i, h in enumerate(header)]))
+        return
+
+    reversal_ref_nos = set()
+    all_rows = []
+
+    for row in ws_main.iter_rows(min_row=2):
+        values = [cell.value for cell in row]
+        text = " ".join([str(v) if v else '' for v in values])
+        ref_no = str(values[refno_idx]).strip() if values[refno_idx] else ""
+
+        all_rows.append((text, values, row))
+
+        if "reversal" in text.lower() and ref_no:
+            reversal_ref_nos.add(ref_no)
+
+    # Enhanced card tracking with transaction types
+    card_summary = defaultdict(lambda: {
+        "count": 0,
+        "amount": 0.0,
+        "ATM_Card_950316": {"count": 0, "amount": 0.0},
+        "ATM_Issuer_Withdraw": {"count": 0, "amount": 0.0},
+        "POS_Issuer_Sale": {"count": 0, "amount": 0.0},
+        "Ecom_Issuer_Sale": {"count": 0, "amount": 0.0},
+        "ATM_Transfer_CardToAccount": {"count": 0, "amount": 0.0}
+    })
+
+    for sheet_name, rows in sheets.items():
+        for text, values, row in all_rows:
+            ref_no = str(values[refno_idx]).strip() if values[refno_idx] else ""
+            if ref_no in reversal_ref_nos:
+                continue
+                
+            card_val = str(values[card_idx]).strip() if card_idx != -1 and values[card_idx] else None
+            
+            if sheet_name == "ATM_Card_950316" and "ATM Withdraw" in text and "950316" in text:
+                rows.append(row)
+                if card_val:
+                    card_summary[card_val][sheet_name]["count"] += 1
+                    card_summary[card_val][sheet_name]["amount"] += to_float_safe(values[amount_idx])
+                    card_summary[card_val]["count"] += 1
+                    card_summary[card_val]["amount"] += to_float_safe(values[amount_idx])
+                    
+            elif sheet_name == "ATM_Issuer_Withdraw" and "ATM Issuer Withdraw" in text:
+                rows.append(row)
+                if card_val:
+                    card_summary[card_val][sheet_name]["count"] += 1
+                    card_summary[card_val][sheet_name]["amount"] += to_float_safe(values[amount_idx])
+                    card_summary[card_val]["count"] += 1
+                    card_summary[card_val]["amount"] += to_float_safe(values[amount_idx])
+                    
+            elif sheet_name == "POS_Issuer_Sale" and "POS Issuer Sale" in text:
+                rows.append(row)
+                if card_val:
+                    card_summary[card_val][sheet_name]["count"] += 1
+                    card_summary[card_val][sheet_name]["amount"] += to_float_safe(values[amount_idx])
+                    card_summary[card_val]["count"] += 1
+                    card_summary[card_val]["amount"] += to_float_safe(values[amount_idx])
+                    
+            elif sheet_name == "Ecom_Issuer_Sale" and "Ecom Issuer Sale" in text:
+                rows.append(row)
+                if card_val:
+                    card_summary[card_val][sheet_name]["count"] += 1
+                    card_summary[card_val][sheet_name]["amount"] += to_float_safe(values[amount_idx])
+                    card_summary[card_val]["count"] += 1
+                    card_summary[card_val]["amount"] += to_float_safe(values[amount_idx])
+                    
+            elif sheet_name == "ATM_Transfer_CardToAccount" and "ATM Transfer" in text and ("CardToAccount" in text or "Card to Account" in text):
+                rows.append(row)
+                if card_val:
+                    card_summary[card_val][sheet_name]["count"] += 1
+                    card_summary[card_val][sheet_name]["amount"] += to_float_safe(values[amount_idx])
+                    card_summary[card_val]["count"] += 1
+                    card_summary[card_val]["amount"] += to_float_safe(values[amount_idx])
+
+    # Create individual sheets
+    for sheet_name, rows in sheets.items():
+        ws = prepare_sheet(wb_main, sheet_name)
+        ws.append(header)
+
+        total_amount = 0.0
+        total_fee = 0.0
+        count = 0
+        unique_cards = set()
+
+        for row in rows:
+            ws.append([cell.value for cell in row])
+            count += 1
+            total_amount += to_float_safe(row[amount_idx].value)
+            total_fee += to_float_safe(row[fee_idx].value)
+
+            if card_idx != -1:
+                card_val = row[card_idx].value
+                if card_val:
+                    unique_cards.add(str(card_val).strip())
+
+        total_use_card = len(unique_cards)
+
+        ws.append([])
+        ws.append(["Total Count", count])
+        ws.append(["Total Amount", total_amount])
+        ws.append(["Total Use Card", total_use_card])
+
+        last_row = ws.max_row
+        for i in range(3):
+            ws.cell(row=last_row - i, column=2).number_format = '#,##0.00'
+
+    # Create enhanced Summary_By_Card sheet with transaction type breakdown
+    ws_card_summary = prepare_sheet(wb_main, "Summary_By_Card")
+    headers = [
+        "Card Number", 
+        "Total Transaction Count", 
+        "Total Amount (MMK)",
+        "ATM 950316 Count",
+        "ATM 950316 Amount",
+        "ATM Withdraw Count",
+        "ATM Withdraw Amount",
+        "POS Sale Count",
+        "POS Sale Amount",
+        "Ecom Sale Count",
+        "Ecom Sale Amount",
+        "ATM Transfer Count",
+        "ATM Transfer Amount"
+    ]
+    ws_card_summary.append(headers)
+
+    # Define highlight colors and fonts
+    amount_highlight = PatternFill(start_color="90EE90", end_color="90EE90", fill_type="solid")  # Light green
+    count_highlight = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")   # Yellow
+    bold_font = Font(bold=True)
+
+    # Apply header styling
+    header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF")
+    for col in range(1, len(headers) + 1):
+        cell = ws_card_summary.cell(row=1, column=col)
+        cell.fill = header_fill
+        cell.font = header_font
+
+    for card, data in sorted(card_summary.items()):
+        row_data = [
+            card,
+            data["count"],
+            data["amount"],
+            data["ATM_Card_950316"]["count"],
+            data["ATM_Card_950316"]["amount"],
+            data["ATM_Issuer_Withdraw"]["count"],
+            data["ATM_Issuer_Withdraw"]["amount"],
+            data["POS_Issuer_Sale"]["count"],
+            data["POS_Issuer_Sale"]["amount"],
+            data["Ecom_Issuer_Sale"]["count"],
+            data["Ecom_Issuer_Sale"]["amount"],
+            data["ATM_Transfer_CardToAccount"]["count"],
+            data["ATM_Transfer_CardToAccount"]["amount"]
+        ]
+        
+        ws_card_summary.append(row_data)
+        row_idx = ws_card_summary.max_row
+        
+        # Format all amount columns
+        amount_columns = [3, 5, 7, 9, 11, 13]  # All amount columns
+        for col in amount_columns:
+            ws_card_summary.cell(row=row_idx, column=col).number_format = '#,##0.00'
+        
+        # Highlight if total amount >= 1,000,000 (green)
+        if data["amount"] >= 1_000_000:
+            for col in range(1, len(headers) + 1):
+                cell = ws_card_summary.cell(row=row_idx, column=col)
+                cell.fill = amount_highlight
+                cell.font = bold_font
+        # Highlight if total count >= 10 (yellow) and amount < 1,000,000
+        elif data["count"] >= 10:
+            for col in range(1, len(headers) + 1):
+                cell = ws_card_summary.cell(row=row_idx, column=col)
+                cell.fill = count_highlight
+                cell.font = bold_font
+
+def load_monitoring_data(progress=None, status_label=None):
+    if progress:
+        progress["value"] = 0
+        progress.update()
+        status_label.config(text="📂 Opening file...")
+
+    file_path = filedialog.askopenfilename(
+        title="Select Excel File",
+        filetypes=[("Excel Files", "*.xls *.xlsx *.xlsm"), ("All Files", "*.*")]
+    )
+
+    if not file_path:
+        messagebox.showwarning("No File", "No file selected.")
+        if status_label:
+            status_label.config(text="⚠️ Cancelled.")
+        return
+
+    ext = os.path.splitext(file_path)[1].lower()
+
+    if ext == ".xls":
+        if status_label:
+            status_label.config(text="🔄 Converting .xls to .xlsx...")
+        converted = convert_xls_to_xlsx(file_path)
+        if not converted:
+            return
+        file_path = converted
+
+    try:
+        if status_label:
+            status_label.config(text="📊 Loading workbook...")
+        wb_data = load_workbook(file_path)
+    except Exception as e:
+        messagebox.showerror("Error", f"❌ Failed to open the Excel file.\n\n{e}")
+        if status_label:
+            status_label.config(text="❌ Error opening file.")
+        return
+
+    ws_data = wb_data["Sheet1"] if "Sheet1" in wb_data.sheetnames else wb_data.active
+
+    wb_main = Workbook()
+    ws_main = wb_main.active
+    ws_main.title = "Main"
+
+    for row in ws_data.iter_rows():
+        ws_main.append([cell.value for cell in row])
+    wb_data.close()
+
+    if status_label:
+        status_label.config(text="⚙️ Processing...")
+    if progress:
+        progress["value"] = 50
+        progress.update()
+
+    group_and_copy_monitoring(ws_main, wb_main)
+
+    if progress:
+        progress["value"] = 80
+        progress.update()
+
+    save_path = filedialog.asksaveasfilename(
+        defaultextension=".xlsx",
+        filetypes=[("Excel Workbook", "*.xlsx")],
+        title="Save Processed File As"
+    )
+
+    if not save_path:
+        messagebox.showinfo("Canceled", "Save operation canceled.")
+        if status_label:
+            status_label.config(text="⚠️ Save canceled.")
+        return
+
+    try:
+        wb_main.save(save_path)
+        if status_label:
+            status_label.config(text="✅ Saved successfully.")
+        if progress:
+            progress["value"] = 100
+            progress.update()
+        messagebox.showinfo("Success", f"✅ File saved to:\n{save_path}")
+    except Exception as e:
+        messagebox.showerror("Error", f"❌ Failed to save the file.\n\n{e}")
+        if status_label:
+            status_label.config(text="❌ Error saving file.")
+            
+# ===================== EXTRACTION FUNCTIONS =====================
+def extract_option_1(lines):
+    data = []
+    for line in lines:
+        card_match = re.search(r'950316\d{10}', line)
+        card_number = card_match.group(0) if card_match else ""
+
+        amount = ""
+        if len(line) >= 52:
+            raw_amount = line[44:52]
+            amt_match = re.match(r'\d{6}', raw_amount)
+            if amt_match:
+                amount = int(amt_match.group(0))
+
+        ref_match = re.search(r'/(\d{12})/', line)
+        ref_number = ref_match.group(1) if ref_match else ""
+
+        if card_number or amount or ref_number:
+            data.append([card_number, amount, ref_number])
+    return data, ["Card Number", "Amount", "Ref Number"]
+
+def extract_option_2(lines):
+    extracted_data = []
+    headers = ["Card Number", "Amount", "Ref Number", "Code", "Commission"]
+
+    for line in lines:
+        if not line.strip():
+            continue
+
+        # 1. Card Number (950316XXXXXXXXXX)
+        card_match = re.search(r'950316\d{10}', line)
+        card_number = card_match.group(0) if card_match else ""
+
+        # 2. Amount (10 digits before 20000000104)
+        amount = ""
+        amt_match = re.search(r'(\d{10})20000000104', line)
+        if amt_match:
+            amount = f"{Decimal(amt_match.group(1)) / Decimal(100):.2f}"
+
+        # 3. Ref Number (12 digits before 1030000|1020000 + any digit + 00030000)
+        ref_number = ""
+        # Find all occurrences of the pattern: 1030000|1020000 + digit + 00030000
+        ref_pattern = r'(?:1030000|1030001|1020000|1010000)\d00030000'
+        pattern_matches = list(re.finditer(ref_pattern, line))
+        if pattern_matches:
+            # If there are at least 2 occurrences, use the second one; otherwise use the first one
+            target_match = pattern_matches[1] if len(pattern_matches) >= 2 else pattern_matches[0]
+            # Get the substring before the target pattern
+            before_pattern = line[:target_match.start()]
+            # Find the last 12 digits before the pattern
+            ref_match = re.search(r'(\d{12})\s*$', before_pattern)
+            if ref_match:
+                ref_number = ref_match.group(1)
+
+        # 4. Code (4 digits after 1030000|1020000 + any digit + 00030000)
+        code = ""
+        code_match = re.search(r'(?:1030000|1030001|1020000|1010000)\d00030000\s*(\d{4})', line)
+        if code_match:
+            code = code_match.group(1)
+
+        # 5. Commission (12 digits before trailing 000000000000)
+        commission = ""
+        comm_match = re.search(r'(\d{12})000000000000\s*$', line)
+        if comm_match:
+            commission = f"{Decimal(comm_match.group(1)) / Decimal(100):.2f}"
+
+        if any([card_number, amount, ref_number, code, commission]):
+            extracted_data.append([card_number, amount, ref_number, code, commission])
+
+    return extracted_data, headers
+
+def extract_option_3(lines):
+    data = []
+    for line in lines:
+        card_number = ""
+        card_match = re.search(r'500\s*(\d{16})', line)
+        if card_match:
+            card_number = card_match.group(1)
+
+        amount = ""
+        if len(line) >= 44:
+            raw_amount = line[44:51]
+            amt_match = re.match(r'\d{6}', raw_amount)
+            if amt_match:
+                amount = int(amt_match.group(0))
+
+        ref_number = ""
+        ref_match = re.search(r'/(\d{12})/', line)
+        if ref_match:
+            ref_number = ref_match.group(1)
+
+        commission = ""
+        comm_match = re.search(r'C00000(\d{6})', line)
+        if comm_match:
+            commission = f"{Decimal(comm_match.group(1)) / Decimal(100):.2f}"
+        
+        if card_number or amount or ref_number:
+            data.append([card_number, amount, ref_number, commission])
+    return data, ["Card Number", "Amount", "Ref Number", "Commission"]
+
+# ===================== FILE CONVERSION =====================
+def convert_files(extract_func, label=""):
+    input_path = filedialog.askopenfilename(
+        title="Select COM or Text File",
+        filetypes=[("Text files", "*.txt;*.*")]
+    )
+    if not input_path:
+        messagebox.showerror("Error", "No input file selected.")
+        return
+
+    output_dir = filedialog.askdirectory(title="Select Output Folder")
+    if not output_dir:
+        messagebox.showerror("Error", "No output folder selected.")
+        return
+
+    try:
+        with open(input_path, "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.readlines()
+
+        rows, columns = extract_func(lines)
+        if not rows:
+            messagebox.showinfo("Done", "No valid records were found.")
+            return
+
+        rows = [[i + 1] + row for i, row in enumerate(rows)]
+        columns = ["No"] + columns
+
+        df = pd.DataFrame(rows, columns=columns)
+        base = os.path.splitext(os.path.basename(input_path))[0]
+        out_xlsx = os.path.join(output_dir, f"{base}_extracted.xlsx")
+        df.to_excel(out_xlsx, index=False, engine="openpyxl")
+
+        format_excel(out_xlsx)
+        messagebox.showinfo("Success", f"Extracted data saved to:\n{out_xlsx}")
+
+    except Exception as e:
+        messagebox.showerror("Error", f"Conversion failed:\n{e}")
+
+def format_excel(file_path):
+    wb = load_workbook(file_path)
+    ws = wb.active
+
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+
+    for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
+        for cell in row:
+            cell.border = thin_border
+            if cell.row == 1:
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.font = Font(bold=True)
+                cell.fill = PatternFill(fill_type="solid", start_color="D9E1F2", end_color="D9E1F2")
+            else:
+                if cell.column_letter == 'C':
+                    cell.number_format = '#,##0.00'
+                    cell.alignment = Alignment(horizontal='right', vertical='center')
+                else:
+                    cell.alignment = Alignment(horizontal='left', vertical='center')
+
+    for col in ws.columns:
+        max_len = max(len(str(c.value)) if c.value is not None else 0 for c in col)
+        col_letter = get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = max_len + (8 if col_letter == 'C' else 2)
+
+    wb.save(file_path)
+
+# ===================== UI COMPONENTS =====================
+class HoverButton(tk.Button):
+    def __init__(self, master, **kw):
+        tk.Button.__init__(self, master=master, **kw)
+        self.default_bg = self["background"]
+        self.default_fg = self["foreground"]
+        self.bind("<Enter>", self.on_enter)
+        self.bind("<Leave>", self.on_leave)
+
+    def on_enter(self, e):
+        self['background'] = SECONDARY_COLOR
+        self['foreground'] = 'white'
+
+    def on_leave(self, e):
+        self['background'] = self.default_bg
+        self['foreground'] = self.default_fg
+
+def create_icon_label(parent, text, icon_path=None):
+    frame = tk.Frame(parent, bg=parent.cget('bg'))
+    frame.pack(pady=5)
+    
+    if icon_path and os.path.exists(icon_path):
+        img = Image.open(icon_path)
+        img = img.resize((20, 20), Image.Resampling.LANCZOS)
+        photo = ImageTk.PhotoImage(img)
+        label = tk.Label(frame, image=photo, bg=frame.cget('bg'))
+        label.image = photo
+        label.pack(side=tk.LEFT, padx=5)
+    
+    tk.Label(
+        frame,
+        text=text,
+        font=(FONT_NAME, 10),
+        bg=frame.cget('bg'),
+        fg=LIGHT_TEXT
+    ).pack(side=tk.LEFT)
+    
+    return frame
+
+# ===================== MAIN APPLICATION =====================
+root = tk.Tk()
+root.title("ALL IN ONE FILE PROCESSOR - Channel Banking Department")
+root.geometry("850x650")
+root.minsize(800, 600)
+root.configure(bg=BG_COLOR)
+
+# ===== HEADER =====
+header_frame = tk.Frame(root, bg=PRIMARY_COLOR)
+header_frame.pack(fill="x", padx=0, pady=0)
+
+title_frame = tk.Frame(header_frame, bg=PRIMARY_COLOR)
+title_frame.pack(side=tk.LEFT, padx=15, pady=10)
+
+tk.Label(
+    title_frame,
+    text="Channel Banking Department (Operation File)",
+    font=(FONT_NAME, 18, "bold"),
+    fg="white",
+    bg=PRIMARY_COLOR
+).pack(anchor="w")
+
+tk.Label(
+    title_frame,
+    text="All-in-one solution for transaction processing",
+    font=(FONT_NAME, 12),
+    fg="white",
+    bg=PRIMARY_COLOR
+).pack(anchor="w")
+
+dark_mode_btn = tk.Button(
+    header_frame,
+    text="🌙",
+    command=toggle_dark_mode,
+    bg=PRIMARY_COLOR,
+    fg="white",
+    bd=0,
+    font=(FONT_NAME, 12),
+    activebackground=PRIMARY_COLOR
+)
+dark_mode_btn.pack(side=tk.RIGHT, padx=15)
+
+# ===== MAIN CONTENT =====
+main_frame = tk.Frame(root, bg=BG_COLOR)
+main_frame.pack(expand=True, fill="both", padx=20, pady=10)
+
+# Instructions
+instruction_text = tk.Text(
+    main_frame,
+    height=1,
+    font=(FONT_NAME, 12, "bold"),
+    bg=BG_COLOR,
+    fg=TEXT_COLOR,
+    wrap="none",
+    borderwidth=0,
+    highlightthickness=0
+)
+instruction_text.insert("end", "Please choose the appropriate tool for your transaction processing needs")
+instruction_text.insert("end", " !", "red")
+instruction_text.tag_config("red", foreground="red")
+instruction_text.config(state="disabled")
+instruction_text.pack(pady=(5, 10))
+
+# Tool buttons frame (Handles layout structure cleanly)
+tools_frame = tk.Frame(main_frame, bg=BG_COLOR)
+tools_frame.pack(expand=True, fill="both")
+
+button_style = {
+    "font": (FONT_NAME, 10, "bold"),
+    "bg": PRIMARY_COLOR,
+    "fg": "white",
+    "activebackground": SECONDARY_COLOR,
+    "activeforeground": "white",
+    "bd": 0,
+    "relief": "flat",
+    "height": 3
+}
+
+# --- Row 0 ---
+atm_btn = HoverButton(
+    tools_frame, text="ATM Daily Transaction & Balance",
+    command=lambda: load_atm_data(progress, status_label), **button_style
+)
+atm_btn.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
+
+daily_btn = HoverButton(
+    tools_frame, text="Daily Excel Processing",
+    command=lambda: load_daily_data(progress, status_label), **button_style
+)
+daily_btn.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
+
+# --- Row 1 ---
+icbs_btn = HoverButton(
+    tools_frame, text="ICBS Report Generator",
+    command=create_icbs_report, **button_style
+)
+icbs_btn.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
+
+mpu_btn = HoverButton(
+    tools_frame, text="MPU Settlement Processing",
+    command=lambda: load_mpu_data(progress, status_label), **button_style
+)
+mpu_btn.grid(row=1, column=1, padx=10, pady=10, sticky="ew")
+
+# --- Row 2 ---
+monitor_btn = HoverButton(
+    tools_frame, text="Transaction Monitoring",
+    command=lambda: load_monitoring_data(progress, status_label), **button_style
+)
+monitor_btn.grid(row=2, column=0, padx=10, pady=10, sticky="ew")
+
+btn1 = HoverButton(
+    tools_frame, text="ICOM File – Issuer",
+    command=lambda: convert_files(extract_option_1), **button_style
+)
+btn1.grid(row=2, column=1, padx=10, pady=10, sticky="ew")
+
+# --- Row 3 ---
+btn2 = HoverButton(
+    tools_frame, text="C File – POS & E-Commerce",
+    command=lambda: convert_files(extract_option_2), **button_style
+)
+btn2.grid(row=3, column=0, padx=10, pady=10, sticky="ew")
+
+btn3 = HoverButton(
+    tools_frame, text="ACOM File – Acquirer",
+    command=lambda: convert_files(extract_option_3), **button_style
+)
+btn3.grid(row=3, column=1, padx=10, pady=10, sticky="ew")
+
+# Configure grid weights for responsive scaling
+tools_frame.columnconfigure(0, weight=1)
+tools_frame.columnconfigure(1, weight=1)
+
+# ===== FEATURES LIST =====
+features_frame = tk.Frame(main_frame, bg=BG_COLOR)
+features_frame.pack(pady=15, fill="x")
+
+features = [
+    "• Extract Card Numbers, Amounts, Code, Commission and Reference Numbers",
+    "• Clean Excel formatting with proper alignment",
+    "• Easy to use"
+]
+
+for feature in features:
+    tk.Label(
+        features_frame,
+        text=feature,
+        font=(FONT_NAME, 9),
+        bg=BG_COLOR,
+        fg=TEXT_COLOR,
+        anchor="w",
+        padx=10
+    ).pack(fill="x", pady=2)
+
+# ===== PROGRESS & STATUS BAR =====
+progress_frame = tk.Frame(main_frame, bg=BG_COLOR)
+progress_frame.pack(fill="x", pady=(10, 5))
+
+progress = ttk.Progressbar(progress_frame, orient="horizontal", mode="determinate")
+progress.pack(side=tk.LEFT, fill="x", expand=True, padx=(10, 20))
+
+status_label = tk.Label(
+    progress_frame,
+    text="Ready.",
+    font=(FONT_NAME, 14, "bold"),
+    fg=LIGHT_TEXT,
+    bg=BG_COLOR
+)
+status_label.pack(side=tk.RIGHT, padx=10)
+
+# ===== FOOTER STATUS BAR =====
+status_bar = tk.Frame(root, bg=PRIMARY_COLOR, height=30)
+status_bar.pack(fill="x", side="bottom")
+
+tk.Label(
+    status_bar,
+    text="V 4.0",
+    font=(FONT_NAME, 8),
+    fg="white",
+    bg=PRIMARY_COLOR,
+    padx=15
+).pack(side=tk.RIGHT, fill="y")
+
+tk.Label(
+    status_bar,
+    text="© Developed by Bo Bo Tun",
+    font=(FONT_NAME, 8),
+    fg="white",
+    bg=PRIMARY_COLOR,
+    padx=15
+).pack(side=tk.LEFT, fill="y")
+
+root.mainloop()
